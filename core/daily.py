@@ -13,7 +13,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
 
 USE_LITE = "--lite" in sys.argv
 SKIP_EMAIL = "--no-email" in sys.argv or "--no-gmail" in sys.argv
@@ -34,18 +33,18 @@ async def main():
     print(f"\n[Step {step}/{total_steps}] 开始抓取各公司招聘信息...")
     print("-" * 40)
     if USE_LITE:
-        from scraper_lite import run as lite_scrape
+        from core.scraper_lite import run as lite_scrape
         results = lite_scrape()
         job_count = len(results)
     else:
         try:
-            from scraper import RecruitmentScraper
+            from core.scraper import RecruitmentScraper
             scraper = RecruitmentScraper()
             results = await scraper.run()
             job_count = len(results)
         except Exception as e:
             print(f"[WARN] Playwright抓取失败({e})，回退到轻量模式...")
-            from scraper_lite import run as lite_scrape
+            from core.scraper_lite import run as lite_scrape
             results = lite_scrape()
             job_count = len(results)
     step += 1
@@ -56,8 +55,8 @@ async def main():
         print(f"\n[Step {step}/{total_steps}] 检查招聘邮件...")
         print("-" * 40)
         try:
-            import config_loader
-            from email_monitor import fetch_emails, generate_email_report, save_results
+            from core import config as config_loader
+            from core.email_monitor import fetch_emails, generate_email_report, save_results
             cfg = config_loader.get_email_config()
             emails = fetch_emails(cfg, days=1)
             if emails:
@@ -71,7 +70,7 @@ async def main():
     # Step 3: 播报 + Excel
     print(f"\n[Step {step}/{total_steps}] 生成每日播报 + 更新Excel...")
     print("-" * 40)
-    from update_report import run as generate_report
+    from core.report import run as generate_report
     generate_report()
 
     # Append email report
@@ -88,7 +87,7 @@ async def main():
         print(f"\n[Push] 推送每日播报...")
         print("-" * 40)
         try:
-            from notifier import send_daily_report
+            from core.notifier import send_daily_report
             send_daily_report()
         except Exception as e:
             print(f"[WARN] 推送失败: {e}")

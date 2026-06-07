@@ -19,14 +19,13 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-import config_loader
+from core import config as config_loader
 from typing import Optional
 
-BASE_DIR = Path(__file__).parent
-CREDENTIALS_PATH = BASE_DIR / "credentials.json"
-TOKEN_PATH = BASE_DIR / "token.json"
-GMAIL_RESULTS_DIR = BASE_DIR / "gmail_results"
+from core import PROJECT_ROOT, DATA_DIR
+CREDENTIALS_PATH = PROJECT_ROOT / "credentials.json"
+TOKEN_PATH = PROJECT_ROOT / "token.json"
+GMAIL_RESULTS_DIR = DATA_DIR / "gmail_results"
 GMAIL_RESULTS_DIR.mkdir(exist_ok=True)
 
 # 招聘相关关键词 - 用于过滤邮件
@@ -204,14 +203,14 @@ def extract_email_info(msg_data: dict) -> dict:
     }
 
 
-def fetch_recent_recruit_emails(days: int = 1) -> list:
-    """获取最近N天的招聘相关邮件"""
+def fetch_recent_recruit_emails(days: int = 3) -> list:
+    """获取最近3天的未读招聘邮件"""
     service = get_gmail_service()
     if not service:
         return []
 
-    after_date = (datetime.now() - timedelta(days=days)).strftime("%Y/%m/%d")
-    query = f"after:{after_date} ("
+    after_date = (datetime.now() - timedelta(days=3)).strftime("%Y/%m/%d")
+    query = f"is:unread after:{after_date} ("
     query += " OR ".join(f'from:{d}' for d in RECRUIT_DOMAINS[:10])
     query += " OR " + " OR ".join(f'subject:{kw}' for kw in RECRUIT_KEYWORDS[:5])
     query += ")"
@@ -310,18 +309,34 @@ def run(days: int = 1):
     return emails
 
 
-if __name__ == "__main__":
-    if "--auth" in sys.argv:
-        print("[INFO] 开始 Gmail OAuth2 授权...")
-        service = get_gmail_service()
-        if service:
-            print("[DONE] 授权成功！token已保存")
-        else:
-            print("[FAIL] 授权失败，请检查 credentials.json")
-    else:
-        days = 1
-        if "--days" in sys.argv:
-            idx = sys.argv.index("--days")
-            if idx + 1 < len(sys.argv):
-                days = int(sys.argv[idx + 1])
-        run(days)
+def gmail_auth():
+    """手动 OAuth 授权流程"""
+    import warnings
+    warnings.filterwarnings("ignore")
+    from google_auth_oauthlib.flow import Flow
+
+    if not CREDENTIALS_PATH.exists():
+        print(f"[ERROR] 未找到 {CREDENTIALS_PATH}")
+        return False
+
+    flow = Flow.from_client_secrets_file(
+        str(CREDENTIALS_PATH),
+        scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+        redirect_uri="urn:ietf:wg:oauth:2.0:oob",
+    )
+    auth_url, _ = flow.authorization_url(prompt="consent")
+
+    print("=" * 60)
+    print("  Gmail 授权")
+    print("=" * 60)
+    print("\n请复制以下链接到浏览器打开：\n")
+    print(auth_url)
+    print()
+    code = input("授权完成后，把页面上显示的授权码粘贴到这里: ").strip()
+
+    flow.fetch_token(code=code)
+    with open(TOKEN_PATH, "w") as f:
+        f.write(flow.credentials.to_json())
+
+    print("\n[DONE] 授权成功！token 已保存")
+    return True

@@ -4,21 +4,13 @@ credentials.json
 token.json
 .env
 
-# === 运行时数据（含个人信息）===
-抓取结果/
-每日播报/
-gmail_results/
-email_results/
-cookies/
-logs/
-秋招投递跟踪表.xlsx
-~$*.xlsx
+# === 运行时数据 ===
+data/
 
 # === Python ===
 __pycache__/
 *.pyc
-*.pyo
 
 # === macOS ===
 .DS_Store
-*.swp
+~$*.xlsx

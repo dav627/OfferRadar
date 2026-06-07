@@ -13,10 +13,11 @@ from typing import Optional
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
-BASE_DIR = Path(__file__).parent
-RESULTS_DIR = BASE_DIR / "抓取结果"
-REPORT_DIR = BASE_DIR / "每日播报"
-EXCEL_PATH = BASE_DIR / "秋招投递跟踪表.xlsx"
+from core import PROJECT_ROOT, DATA_DIR
+
+RESULTS_DIR = DATA_DIR / "抓取结果"
+REPORT_DIR = DATA_DIR / "每日播报"
+EXCEL_PATH = DATA_DIR / "秋招投递跟踪表.xlsx"
 REPORT_DIR.mkdir(exist_ok=True)
 
 
@@ -115,7 +116,7 @@ def generate_daily_report(latest: dict, new_jobs: list) -> str:
 
     # LLM smart summary (if configured)
     try:
-        from llm_analyzer import generate_smart_report, analyze_jobs
+        from core.llm import generate_smart_report, analyze_jobs
         if new_jobs:
             new_jobs = analyze_jobs(new_jobs)
         smart = generate_smart_report(all_jobs, new_jobs)

@@ -18,10 +18,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-BASE_DIR = Path(__file__).parent
-sys.path.insert(0, str(BASE_DIR))
+from core import PROJECT_ROOT, DATA_DIR
 
-RESULTS_DIR = BASE_DIR / "email_results"
+RESULTS_DIR = DATA_DIR / "email_results"
 RESULTS_DIR.mkdir(exist_ok=True)
 
 # 已知的招聘邮件发件人域名
@@ -137,12 +136,13 @@ def fetch_via_imap(config: dict, days: int = 1) -> list:
             print("  QQ邮箱:  设置 → 账户 → 开启IMAP → 获取授权码")
         return []
 
-    since_date = (datetime.now() - timedelta(days=days)).strftime("%d-%b-%Y")
-    _, msg_ids = conn.search(None, f'(SINCE "{since_date}")')
+    since_date = (datetime.now() - timedelta(days=3)).strftime("%d-%b-%Y")
+    _, msg_ids = conn.search(None, f'(UNSEEN SINCE "{since_date}")')
 
     emails_found = []
-    for msg_id in msg_ids[0].split()[-50:]:  # 最多50封
-        _, data = conn.fetch(msg_id, "(RFC822)")
+    for msg_id in msg_ids[0].split()[-50:]:
+        # PEEK: read without changing UNSEEN flag
+        _, data = conn.fetch(msg_id, "(BODY.PEEK[])")
         raw = data[0][1]
         msg = email.message_from_bytes(raw)
 
@@ -183,7 +183,7 @@ def fetch_via_imap(config: dict, days: int = 1) -> list:
 def fetch_via_gmail(days: int = 1) -> list:
     """通过 Gmail API 获取邮件（需要 credentials.json + token.json）"""
     try:
-        from gmail_monitor import fetch_recent_recruit_emails
+        from core.gmail import fetch_recent_recruit_emails
         return fetch_recent_recruit_emails(days)
     except Exception as e:
         print(f"[ERROR] Gmail API 调用失败: {e}")
@@ -204,7 +204,7 @@ def fetch_emails(config: dict, days: int = 1) -> list:
         return fetch_via_imap(config, days)
     else:
         # Auto detect
-        if (BASE_DIR / "token.json").exists():
+        if (PROJECT_ROOT / "token.json").exists():
             print("[INFO] 检测到 token.json，使用 Gmail API")
             return fetch_via_gmail(days)
         elif config.get("address") and config.get("password"):
@@ -215,27 +215,26 @@ def fetch_emails(config: dict, days: int = 1) -> list:
             return []
 
 
+def _one_line_summary(e: dict) -> str:
+    """一句话概括邮件内容"""
+    snippet = e.get("snippet", "")[:80].replace("\n", " ").strip()
+    if not snippet:
+        return e.get("subject", "")[:50]
+    return snippet
+
+
 def generate_email_report(emails: list) -> str:
-    """生成邮件监控报告"""
+    """生成邮件监控报告（仅未读邮件，一句话概括）"""
     if not emails:
         return ""
 
-    report = "\n## 邮箱监控\n\n"
-    report += f"发现 **{len(emails)}** 封招聘相关邮件：\n\n"
-    report += "| 时间 | 公司 | 类别 | 主题 |\n"
-    report += "|------|------|------|------|\n"
+    report = "\n## 邮箱监控（最近3天未读）\n\n"
 
     for e in emails:
-        date = e.get("date", "")[:16]
-        report += f"| {date} | {e['company']} | {e['category']} | {e['subject'][:40]} |\n"
-
-    important = [e for e in emails if e["category"] in ("笔试通知", "面试邀请", "Offer通知")]
-    if important:
-        report += "\n### 重要通知\n\n"
-        for e in important:
-            report += f"- **[{e['category']}]** {e['company']} - {e['subject']}\n"
-            if e.get("snippet"):
-                report += f"  > {e['snippet'][:100]}\n"
+        tag = f"**[{e['category']}]**" if e["category"] != "其他" else ""
+        company = e.get("company", "未知")
+        summary = _one_line_summary(e)
+        report += f"- {tag} {company} | {summary}\n"
 
     return report
 
@@ -253,7 +252,7 @@ def save_results(emails: list):
 
 
 if __name__ == "__main__":
-    import config_loader
+    from core import config as config_loader
     cfg = config_loader.get_email_config()
     days = 7
     if "--days" in sys.argv:

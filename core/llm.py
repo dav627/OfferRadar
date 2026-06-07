@@ -15,9 +15,8 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-BASE_DIR = Path(__file__).parent
-sys.path.insert(0, str(BASE_DIR))
-import config_loader
+from core import PROJECT_ROOT, DATA_DIR
+from core import config as config_loader
 
 PROFILE = """
 求职方向：LLM应用算法工程师（2027届校招）

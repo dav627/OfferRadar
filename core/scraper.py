@@ -15,9 +15,9 @@ from typing import Optional
 
 from playwright.async_api import async_playwright, Page, TimeoutError as PlaywrightTimeout
 
-BASE_DIR = Path(__file__).parent
-COMPANY_LIST_PATH = BASE_DIR / "公司清单.json"
-RESULTS_DIR = BASE_DIR / "抓取结果"
+from core import PROJECT_ROOT, DATA_DIR
+COMPANY_LIST_PATH = PROJECT_ROOT / "公司清单.json"
+RESULTS_DIR = DATA_DIR / "抓取结果"
 RESULTS_DIR.mkdir(exist_ok=True)
 
 KEYWORDS = ["大模型", "LLM", "NLP", "RLHF", "RAG", "Agent", "对齐", "强化学习",
@@ -394,7 +394,7 @@ class RecruitmentScraper:
     def _merge_lite_results(self):
         """Merge in results from lite scraper (better for sites with server-rendered HTML)"""
         try:
-            from scraper_lite import run as lite_run
+            from core.scraper_lite import run as lite_run
             print("[INFO] 合并轻量抓取结果...")
             lite_jobs = lite_run()
 

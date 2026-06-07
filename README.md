@@ -303,29 +303,34 @@ python3 launcher.py schedule --time HH:MM  # 改时间
 
 ```
 2027LLM-Agent/
-├── launcher.py          # 统一启动器（所有操作的入口）
-├── run_daily.py         # 每日执行主流程
-├── scraper.py           # Playwright 全功能抓取器
-├── scraper_lite.py      # 轻量抓取器（无需浏览器，推荐）
-├── update_report.py     # 播报生成 + Excel 更新
-├── email_monitor.py     # 统一邮件监控（Gmail API + IMAP）
-├── gmail_monitor.py     # Gmail API 专用模块
-├── gmail_auth.py        # Gmail 手动授权脚本
-├── notifier.py          # 微信/QQ 推送
-├── llm_analyzer.py      # LLM 智能分析（匹配评分+播报总结）
-├── auto_apply.py        # 自动投递框架（实验性）
-├── config_loader.py     # 统一配置加载器
-├── setup_schedule.sh    # macOS launchd 定时任务
-├── config.yaml.example  # 配置模板（所有配置集中在此）
-├── config.yaml          # 你的实际配置（不提交到 git）
-├── config.json          # 推送配置备选（兼容旧版）
-├── 公司清单.json         # 监控的目标公司（47 家，可自行增删）
-├── credentials.json     # Gmail OAuth 凭据（不提交）
-├── token.json           # Gmail 授权 token（不提交）
-├── 秋招投递跟踪表.xlsx   # 投递数据（自动生成，不提交）
-├── 抓取结果/            # 抓取原始数据（不提交）
-├── 每日播报/            # 每日报告（不提交）
-└── gmail_results/       # 邮件监控结果（不提交）
+├── launcher.py              # 唯一入口（所有操作从这里启动）
+├── config.yaml.example      # 配置模板（复制为 config.yaml 后编辑）
+├── 公司清单.json             # 目标公司列表（可自行增删）
+├── README.md
+│
+├── core/                    # 业务模块（无需直接操作）
+│   ├── config.py            # 配置加载器
+│   ├── scraper.py           # Playwright 全功能抓取
+│   ├── scraper_lite.py      # 轻量抓取（无需浏览器）
+│   ├── report.py            # 播报生成 + Excel 更新
+│   ├── email_monitor.py     # 统一邮件监控（Gmail + IMAP）
+│   ├── gmail.py             # Gmail API + OAuth 授权
+│   ├── notifier.py          # 微信/QQ 推送
+│   ├── llm.py               # LLM 智能分析
+│   ├── daily.py             # 每日执行主流程
+│   └── auto_apply.py        # 自动投递（实验性）
+│
+├── scripts/
+│   └── setup_schedule.sh    # macOS 定时任务脚本
+│
+├── config.yaml              # 你的配置（不提交 git）
+├── credentials.json         # Gmail 凭据（不提交）
+├── token.json               # Gmail token（不提交）
+└── data/                    # 运行时数据（不提交）
+    ├── 秋招投递跟踪表.xlsx
+    ├── 抓取结果/
+    ├── 每日播报/
+    └── email_results/
 ```
 
 ---

@@ -27,9 +27,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-BASE_DIR = Path(__file__).parent
-sys.path.insert(0, str(BASE_DIR))
-import config_loader
+from core import PROJECT_ROOT, DATA_DIR
+from core import config as config_loader
 
 
 def load_config() -> dict:
@@ -172,7 +171,7 @@ def send_notification(title: str, content: str) -> dict:
 def send_daily_report():
     """发送每日播报"""
     today = datetime.now().strftime("%Y-%m-%d")
-    report_path = BASE_DIR / "每日播报" / f"{today}.md"
+    report_path = DATA_DIR / "每日播报" / f"{today}.md"
 
     if not report_path.exists():
         print(f"[ERROR] 未找到今日播报: {report_path}")

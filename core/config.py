@@ -1,16 +1,14 @@
 """
 统一配置加载器
-所有配置集中在 config.yaml 中管理
-优先级: config.yaml > .env 环境变量 > 默认值
+优先级: config.yaml > .env > 默认值
 """
 
 import os
 import yaml
-from pathlib import Path
+from core import PROJECT_ROOT
 
-BASE_DIR = Path(__file__).parent
-CONFIG_PATH = BASE_DIR / "config.yaml"
-ENV_PATH = BASE_DIR / ".env"
+CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+ENV_PATH = PROJECT_ROOT / ".env"
 
 _config = None
 
@@ -20,7 +18,6 @@ def _load():
     if _config is not None:
         return _config
 
-    # Load .env as fallback
     if ENV_PATH.exists():
         for line in ENV_PATH.read_text().splitlines():
             line = line.strip()
@@ -29,7 +26,6 @@ def _load():
                 if v.strip() and k.strip() not in os.environ:
                     os.environ[k.strip()] = v.strip()
 
-    # Load config.yaml
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, encoding="utf-8") as f:
             _config = yaml.safe_load(f) or {}
@@ -40,15 +36,8 @@ def _load():
 
 
 def get(section: str, key: str, default=""):
-    """读取配置: get("llm", "api_key")"""
     cfg = _load()
     return cfg.get(section, {}).get(key, default) or default
-
-
-def get_section(section: str) -> dict:
-    """读取整个配置段: get_section("push")"""
-    cfg = _load()
-    return cfg.get(section, {})
 
 
 def get_llm_config() -> dict:
@@ -72,33 +61,24 @@ def get_proxy() -> dict:
 def get_push_config() -> dict:
     cfg = _load()
     push = cfg.get("push", {})
-
     result = {}
     for channel in ["serverchan", "pushplus", "wecom_bot", "qmsg"]:
         ch = push.get(channel, {})
-        if ch.get("enabled"):
-            result[channel] = ch
-        else:
-            result[channel] = {}
-
-    # .env fallback
+        result[channel] = ch if ch.get("enabled") else {}
     if not any(v.get("enabled") for v in result.values()):
         sk = os.environ.get("SERVERCHAN_SENDKEY", "")
         if sk:
             result["serverchan"] = {"enabled": True, "sendkey": sk}
-
     return result
 
 
 def get_email_config() -> dict:
-    cfg = _load()
-    return cfg.get("email", {})
+    return _load().get("email", {})
 
 
 def get_schedule_config() -> dict:
-    cfg = _load()
     defaults = {"enabled": False, "time": "09:00", "mode": "lite", "email": True, "push": True}
-    defaults.update(cfg.get("schedule", {}))
+    defaults.update(_load().get("schedule", {}))
     return defaults
 
 

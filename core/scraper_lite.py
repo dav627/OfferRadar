@@ -13,9 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-BASE_DIR = Path(__file__).parent
-COMPANY_LIST_PATH = BASE_DIR / "公司清单.json"
-RESULTS_DIR = BASE_DIR / "抓取结果"
+from core import PROJECT_ROOT, DATA_DIR
+COMPANY_LIST_PATH = PROJECT_ROOT / "公司清单.json"
+RESULTS_DIR = DATA_DIR / "抓取结果"
 RESULTS_DIR.mkdir(exist_ok=True)
 
 HEADERS = {

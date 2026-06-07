@@ -29,8 +29,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-BASE_DIR = Path(__file__).parent
-COOKIE_DIR = BASE_DIR / "cookies"
+from core import PROJECT_ROOT, DATA_DIR
+COOKIE_DIR = DATA_DIR / "cookies"
 COOKIE_DIR.mkdir(exist_ok=True)
 RESUME_DIR = Path(__file__).parent.parent  # 父目录（简历所在位置）
 
@@ -188,7 +188,7 @@ class AutoApplier:
         """从Excel读取待投递的岗位"""
         import openpyxl
 
-        excel_path = BASE_DIR / "秋招投递跟踪表.xlsx"
+        excel_path = DATA_DIR / "秋招投递跟踪表.xlsx"
         if not excel_path.exists():
             return {}
 
@@ -222,7 +222,7 @@ class AutoApplier:
         """更新Excel中已投递的状态"""
         import openpyxl
 
-        excel_path = BASE_DIR / "秋招投递跟踪表.xlsx"
+        excel_path = DATA_DIR / "秋招投递跟踪表.xlsx"
         if not excel_path.exists() or self.dry_run:
             return
 
