@@ -69,6 +69,14 @@ def get_push_config() -> dict:
     return config
 
 
+def get_llm_config() -> dict:
+    return {
+        "api_key": get("LLM_API_KEY"),
+        "base_url": get("LLM_BASE_URL", "https://api.deepseek.com/v1"),
+        "model": get("LLM_MODEL", "deepseek-chat"),
+    }
+
+
 def get_schedule_config() -> dict:
     defaults = {"enabled": False, "time": "09:00", "mode": "lite",
                 "gmail": True, "push": True}

@@ -113,8 +113,18 @@ def generate_daily_report(latest: dict, new_jobs: list) -> str:
     for company in sorted(by_company.keys(), key=lambda x: len(by_company[x]), reverse=True):
         report += f"| {company} | {len(by_company[company])} |\n"
 
+    # LLM smart summary (if configured)
+    try:
+        from llm_analyzer import generate_smart_report, analyze_jobs
+        if new_jobs:
+            new_jobs = analyze_jobs(new_jobs)
+        smart = generate_smart_report(all_jobs, new_jobs)
+        if smart:
+            report += "\n## AI 分析\n\n" + smart + "\n"
+    except Exception as e:
+        print(f"[INFO] LLM 分析跳过: {e}")
+
     report += f"\n---\n\n*生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}*\n"
-    report += "*Agent版本: v0.2 - Phase 2*\n"
 
     return report
 

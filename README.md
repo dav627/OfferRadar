@@ -1,19 +1,20 @@
 # 2027 秋招 LLM应用算法 — 自动信息收集 Agent
 
-> 自动抓取各大公司校园招聘信息 → 生成 Excel 投递跟踪表 → 每日播报 → 微信推送 → Gmail 邮件监控
+> 自动抓取各大公司校招信息 → LLM 智能分析匹配度 → Excel 跟踪表 → 每日播报 → 微信推送 → Gmail 监控
 
 ## 运行成本
 
-| 项目 | 费用 |
-|------|------|
-| 本项目代码 | **完全免费、开源** |
-| Python 3.9+ | 免费 |
-| Server酱（微信推送） | 免费（每天 5 条额度） |
-| Gmail API | 免费（个人用量远低于配额） |
-| Google Cloud 项目 | 免费（不需要绑定信用卡） |
-| Playwright（可选） | 免费 |
+| 项目 | 费用 | 说明 |
+|------|------|------|
+| 本项目代码 | **免费开源** | MIT License |
+| Python 3.9+ | 免费 | |
+| LLM API（岗位分析） | **约 ¥0.1/天** | DeepSeek API，百万 token ≈ ¥1，每次分析约用 2K token |
+| Server酱（微信推送） | 免费 | 每天 5 条额度，完全够用 |
+| Gmail API | 免费 | 个人用量远低于免费配额 |
+| Google Cloud 项目 | 免费 | 不需要绑定信用卡 |
+| Playwright（可选） | 免费 | 也可以不装，用轻量抓取模式 |
 
-**总结：全程零费用。** 所有第三方服务均使用免费额度，无需付费。
+**总结：几乎零成本。** LLM 分析是唯一付费项，使用 DeepSeek API 每月不到 ¥3。也可以不配置 LLM，系统会跳过智能分析，仅输出原始数据。
 
 ---
 
@@ -93,6 +94,34 @@ python3 launcher.py status
 ---
 
 ## 详细配置
+
+### LLM 接口（智能分析）
+
+LLM 用于：岗位匹配度评分、JD 关键信息提取、每日播报的自然语言总结。
+
+**推荐 DeepSeek API**（最便宜，百万 token ≈ ¥1）：
+
+1. 访问 https://platform.deepseek.com/ 注册
+2. 创建 API Key
+3. 写入 `.env`：
+   ```
+   LLM_API_KEY=sk-你的key
+   LLM_BASE_URL=https://api.deepseek.com/v1
+   LLM_MODEL=deepseek-chat
+   ```
+4. 测试：`python3 launcher.py test-llm`
+
+**也支持其他兼容 OpenAI 格式的 API：**
+
+| 提供商 | BASE_URL | MODEL | 备注 |
+|--------|----------|-------|------|
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` | 最便宜 |
+| 智谱AI | `https://open.bigmodel.cn/api/paas/v4` | `glm-4-flash` | 免费额度 |
+| Moonshot | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` | |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` | 需外币卡 |
+| 本地 Ollama | `http://localhost:11434/v1` | `qwen2.5:7b` | 完全免费 |
+
+> 不配置 LLM 也能正常运行，只是跳过智能分析，输出原始数据表格。
 
 ### 微信推送（Server酱）
 
@@ -215,6 +244,7 @@ python3 launcher.py schedule --time HH:MM  # 改时间
 ├── gmail_monitor.py     # Gmail 招聘邮件监控
 ├── gmail_auth.py        # Gmail 手动授权脚本
 ├── notifier.py          # 微信/QQ 推送
+├── llm_analyzer.py      # LLM 智能分析（匹配评分+播报总结）
 ├── auto_apply.py        # 自动投递框架（实验性）
 ├── config_loader.py     # 统一配置加载器
 ├── setup_schedule.sh    # macOS launchd 定时任务

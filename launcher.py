@@ -11,6 +11,7 @@
   python3 launcher.py init             首次初始化（生成Excel等）
   python3 launcher.py status           查看系统状态
   python3 launcher.py test-push        发送测试推送
+  python3 launcher.py test-llm         测试 LLM 接口
   python3 launcher.py gmail-auth       Gmail OAuth 授权
 
   python3 launcher.py schedule         查看定时任务状态
@@ -152,6 +153,13 @@ def cmd_status():
     active = [k for k, v in push.items() if v.get("enabled")]
     print(f"  推送渠道:          {', '.join(active) if active else '未配置'}")
 
+    # LLM
+    llm = config_loader.get_llm_config()
+    if llm["api_key"]:
+        print(f"  LLM 接口:          {llm['model']} @ {llm['base_url'][:40]}")
+    else:
+        print(f"  LLM 接口:          未配置 (在 .env 中设置 LLM_API_KEY)")
+
     # Proxy
     proxy = config_loader.get_proxy()
     print(f"  代理设置:          {proxy.get('http', '未设置')}")
@@ -260,6 +268,17 @@ def main():
         cmd_status()
     elif cmd == "test-push":
         cmd_test_push()
+    elif cmd == "test-llm":
+        from llm_analyzer import check_llm_available
+        print("[INFO] 测试 LLM 连接...")
+        if check_llm_available():
+            print("[OK] LLM API 可用")
+        else:
+            llm = config_loader.get_llm_config()
+            if not llm["api_key"]:
+                print("[FAIL] 未配置 LLM_API_KEY，请在 .env 中设置")
+            else:
+                print(f"[FAIL] 无法连接 {llm['base_url']}")
     elif cmd == "gmail-auth":
         cmd_gmail_auth()
     elif cmd == "schedule":
