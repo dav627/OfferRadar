@@ -99,7 +99,7 @@ $ python3 launcher.py status
 ### 第 1 步：安装
 
 ```bash
-git clone https://github.com/IDIOT01/OfferRadar.git
+git clone https://github.com/dav627/OfferRadar.git
 cd OfferRadar
 
 # macOS / Linux
