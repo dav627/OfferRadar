@@ -156,7 +156,8 @@ def cmd_status():
 
     with open(PROJECT_ROOT / "公司清单.json") as f:
         n = len(json.load(f)["companies"])
-    print(f"\n  监控公司: {n} 家 | LLM应用算法 | 仅校招2027届")
+    profile = cfg.get_profile()
+    print(f"\n  监控公司: {n} 家 | {profile['target_role']} | {profile['graduation']}届校招")
 
 
 def cmd_test_push():

@@ -76,6 +76,19 @@ def get_email_config() -> dict:
     return _load().get("email", {})
 
 
+def get_profile() -> dict:
+    cfg = _load()
+    defaults = {
+        "target_role": "算法工程师",
+        "graduation": "2027",
+        "keywords": ["大模型", "LLM", "NLP", "算法", "Agent"],
+        "exclude_keywords": [],
+        "bio": "",
+    }
+    defaults.update(cfg.get("profile", {}))
+    return defaults
+
+
 def get_schedule_config() -> dict:
     defaults = {"enabled": False, "time": "09:00", "mode": "lite", "email": True, "push": True}
     defaults.update(_load().get("schedule", {}))

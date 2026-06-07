@@ -20,11 +20,10 @@ COMPANY_LIST_PATH = PROJECT_ROOT / "公司清单.json"
 RESULTS_DIR = DATA_DIR / "抓取结果"
 RESULTS_DIR.mkdir(exist_ok=True)
 
-KEYWORDS = ["大模型", "LLM", "NLP", "RLHF", "RAG", "Agent", "对齐", "强化学习",
-            "自然语言处理", "对话", "微调", "算法", "大模型应用"]
-
-EXCLUDE_KEYWORDS = ["多模态", "基座模型", "预训练", "foundation", "视觉",
-                    "图像", "语音", "CV", "计算机视觉", "multimodal"]
+from core.config import get_profile as _get_profile
+_profile = _get_profile()
+KEYWORDS = _profile["keywords"]
+EXCLUDE_KEYWORDS = _profile["exclude_keywords"]
 
 
 @dataclass

@@ -24,11 +24,12 @@ HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9",
 }
 
-KEYWORDS = ["大模型", "LLM", "NLP", "RLHF", "RAG", "Agent", "算法", "对齐",
-            "微调", "强化学习", "自然语言", "大模型应用"]
-
-EXCLUDE_KEYWORDS = ["多模态", "基座模型", "预训练", "foundation", "视觉",
-                    "图像", "语音", "CV", "计算机视觉", "multimodal"]
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core.config import get_profile as _get_profile
+_profile = _get_profile()
+KEYWORDS = _profile["keywords"]
+EXCLUDE_KEYWORDS = _profile["exclude_keywords"]
 
 
 def fetch_url(url: str, timeout: int = 15) -> str:

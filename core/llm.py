@@ -18,16 +18,13 @@ from pathlib import Path
 from core import PROJECT_ROOT, DATA_DIR
 from core import config as config_loader
 
-PROFILE = """
-求职方向：LLM应用算法工程师（2027届校招）
-核心技能：
-- RLHF/DPO/GRPO/SDPO 偏好对齐训练（有美团实习实战经验）
-- RAG 生成质量优化（PPO+奖励模型）
-- SFT/LoRA 微调（Qwen/DeepSeek 系列，MoE 架构训练加速）
-- Multi-Agent 路由优化（UCB+GNN）
-- 搜索增强推理（GRPO+Tool Use）
-- 熟悉 VERL、LLaMA-Factory、ms-swift、Megatron 框架
-不匹配方向：多模态、计算机视觉、语音、基座模型预训练
+def _get_profile_text() -> str:
+    p = config_loader.get_profile()
+    exclude = "、".join(p["exclude_keywords"][:5]) if p["exclude_keywords"] else "无"
+    bio = p.get("bio", "").strip()
+    return f"""求职方向：{p['target_role']}（{p['graduation']}届校招）
+{bio if bio else '（未填写技能简介，请在 config.yaml 的 profile.bio 中补充）'}
+不匹配方向：{exclude}
 """
 
 
@@ -92,7 +89,7 @@ def analyze_jobs(jobs: list) -> list:
 2. 一句话理由
 
 求职者背景：
-{PROFILE}
+{_get_profile_text()}
 
 岗位列表：
 {job_text}
@@ -152,7 +149,7 @@ def generate_smart_report(jobs: list, new_jobs: list) -> str:
     prompt = f"""{context}
 
 求职者背景：
-{PROFILE}
+{_get_profile_text()}
 
 请生成一份简洁的每日秋招播报（中文，Markdown格式），包含：
 1. 今日概要（1-2句话总结）

@@ -1,4 +1,4 @@
-# 2027 秋招 LLM应用算法 — 自动信息收集 Agent
+# OfferRadar — 秋招信息自动收集 Agent
 
 > 自动抓取各大公司校招信息 → LLM 智能分析匹配度 → Excel 跟踪表 → 每日播报 → 微信推送 → 邮箱监控
 >
@@ -185,8 +185,8 @@ $ python3 launcher.py status
 ### 1. 克隆 & 安装依赖
 
 ```bash
-git clone https://github.com/IDIOT01/2027LLM-Agent.git
-cd 2027LLM-Agent
+git clone https://github.com/IDIOT01/OfferRadar.git
+cd OfferRadar
 
 # macOS / Linux
 pip3 install openpyxl pyyaml
@@ -443,7 +443,7 @@ python3 launcher.py schedule --time HH:MM  # 改时间
 ## 目录结构
 
 ```
-2027LLM-Agent/
+OfferRadar/
 ├── launcher.py              # 唯一入口（所有操作从这里启动）
 ├── config.yaml.example      # 配置模板（复制为 config.yaml 后编辑）
 ├── 公司清单.json             # 目标公司列表（可自行增删）
