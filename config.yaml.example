@@ -1,0 +1,93 @@
+# ============================================================
+#  秋招Agent 配置文件
+#  复制本文件为 config.yaml 后修改
+#  cp config.yaml.example config.yaml
+# ============================================================
+
+
+# ==================== LLM 接口 ====================
+# 用于岗位智能分析和每日播报总结
+# 不配置也能运行，只是跳过智能分析
+# 推荐 DeepSeek（最便宜）: https://platform.deepseek.com/
+
+llm:
+  api_key: ""                                    # 填你的 API Key
+  base_url: "https://api.deepseek.com/v1"        # API 地址
+  model: "deepseek-chat"                         # 模型名
+  # 其他选择:
+  #   智谱(免费额度): base_url: https://open.bigmodel.cn/api/paas/v4  model: glm-4-flash
+  #   Moonshot:       base_url: https://api.moonshot.cn/v1             model: moonshot-v1-8k
+  #   本地Ollama:     base_url: http://localhost:11434/v1              model: qwen2.5:7b
+
+
+# ==================== 推送渠道 ====================
+# 至少配一个，用于每日播报推送到手机
+# 推荐 Server酱（免费微信推送）: https://sct.ftqq.com/
+
+push:
+  serverchan:
+    enabled: false
+    sendkey: ""                                  # https://sct.ftqq.com/ 获取
+
+  pushplus:
+    enabled: false
+    token: ""                                    # https://www.pushplus.plus/ 获取
+
+  wecom_bot:
+    enabled: false
+    webhook: ""                                  # 企业微信群机器人 webhook URL
+
+  qmsg:
+    enabled: false
+    key: ""                                      # https://qmsg.zendee.cn/
+    qq: ""                                       # 接收消息的 QQ 号
+
+
+# ==================== 邮箱监控 ====================
+# 监控招聘相关邮件（笔试通知、面试邀请、offer 等）
+# 支持两种方式：Gmail API 或 IMAP（163/QQ/Outlook 等）
+
+email:
+  # --- 方式选择 ---
+  # gmail_api: 通过 Google OAuth API（需要 credentials.json）
+  # imap:      通过 IMAP 协议（163/QQ/Outlook 等，需要授权码）
+  # 留空:      自动检测（有 token.json 用 Gmail API，否则尝试 IMAP）
+  method: ""
+
+  # --- IMAP 配置（163/QQ/Outlook 等邮箱用这个）---
+  address: ""                                    # 你的邮箱地址，如 xxx@163.com
+  password: ""                                   # 授权码（不是登录密码！）
+  provider: ""                                   # 可选: 163 / qq / outlook / gmail / 126 / yeah / sina
+  # 如果 provider 匹配不上，手动填:
+  imap_host: ""                                  # 如 imap.163.com
+  imap_port: 993
+
+  # --- 授权码获取方式 ---
+  # 163邮箱: 设置 → POP3/SMTP/IMAP → 开启IMAP服务 → 获取授权码
+  # QQ邮箱:  设置 → 账户 → POP3/IMAP/SMTP/Exchange/CardDAV → 开启IMAP → 获取授权码
+  # Outlook: 直接使用登录密码即可，无需单独授权码
+  # Gmail:   推荐使用 gmail_api 方式（更安全），也可用 IMAP + 应用专用密码
+
+  # --- Gmail API 配置 ---
+  # 1. 将 Google Cloud 的 OAuth 凭据保存为项目根目录下的 credentials.json
+  # 2. 运行 python3 launcher.py gmail-auth 完成授权
+  # 3. 授权后会自动生成 token.json
+
+
+# ==================== 网络代理 ====================
+# 如果你的网络无法直连 googleapis.com 或其他海外服务，需要配置代理
+# 留空表示不使用代理
+
+proxy:
+  http: ""                                       # 如 http://127.0.0.1:7897
+  https: ""                                      # 如 http://127.0.0.1:7897
+
+
+# ==================== 定时任务 ====================
+
+schedule:
+  enabled: false
+  time: "09:00"                                  # 每天执行时间（HH:MM）
+  mode: "lite"                                   # lite（轻量抓取）或 full（Playwright）
+  email: true                                    # 是否检查邮箱
+  push: true                                     # 是否推送

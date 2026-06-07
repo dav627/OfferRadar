@@ -158,7 +158,7 @@ def cmd_status():
     if llm["api_key"]:
         print(f"  LLM 接口:          {llm['model']} @ {llm['base_url'][:40]}")
     else:
-        print(f"  LLM 接口:          未配置 (在 .env 中设置 LLM_API_KEY)")
+        print(f"  LLM 接口:          未配置 (在 config.yaml 的 llm.api_key 填写)")
 
     # Proxy
     proxy = config_loader.get_proxy()

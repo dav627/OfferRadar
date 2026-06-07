@@ -1,4 +1,5 @@
 # === 敏感凭据 ===
+config.yaml
 credentials.json
 token.json
 .env
@@ -7,6 +8,7 @@ token.json
 抓取结果/
 每日播报/
 gmail_results/
+email_results/
 cookies/
 logs/
 秋招投递跟踪表.xlsx
