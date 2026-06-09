@@ -96,6 +96,7 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
     <div class="tab" onclick="switchTab('report')">每日报告</div>
     <div class="tab" onclick="switchTab('companies')">目标公司</div>
     <div class="tab" onclick="switchTab('profile')">岗位设置</div>
+    <div class="tab" onclick="switchTab('sources')">数据源</div>
     <div class="tab" onclick="switchTab('settings')">系统配置</div>
   </div>
 
@@ -167,6 +168,37 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
     </div>
   </div>
 
+  <!-- ====== 数据源 ====== -->
+  <div id="panel-sources" class="panel">
+    <div class="box">
+      <h3>数据源说明</h3>
+      <p style="font-size:13px;color:#94a3b8;line-height:1.7">
+        <strong style="color:#60a5fa">免配置（已内置）：</strong>字节跳动、百度、腾讯 — 通过公开 API 或页面解析，无需登录。<br>
+        <strong style="color:#fbbf24">需登录（方案1）：</strong>阿里、美团、快手等 — 招聘页面需要登录后才能查看岗位。点击下方「登录」按钮会弹出浏览器窗口，手动登录后关闭窗口即可保存 Cookie。<br>
+        <strong style="color:#34d399">第三方聚合（方案2）：</strong>牛客网 — 一次搜索覆盖所有公司的校招讨论和岗位信息。
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>公司官网登录抓取 <span style="font-size:11px;color:#64748b;font-weight:400">需安装 Playwright + Chrome</span></h3>
+      <p style="font-size:12px;color:#64748b;margin-bottom:10px">点击「登录」→ 浏览器弹出该公司招聘页 → 手动登录 → 关闭浏览器窗口 → Cookie 自动保存。之后点「抓取」即可获取岗位。</p>
+      <table>
+        <thead><tr><th>公司</th><th>Cookie 状态</th><th>操作</th></tr></thead>
+        <tbody id="source-login-table"></tbody>
+      </table>
+    </div>
+
+    <div class="box">
+      <h3>第三方聚合源</h3>
+      <p style="font-size:12px;color:#64748b;margin-bottom:10px">从牛客网搜索校招相关信息，一次覆盖多家公司。</p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="nowcoder-keyword" placeholder="搜索关键词（默认用你的岗位关键词）" style="flex:1">
+        <button class="btn btn-primary" id="btn-nowcoder" onclick="scrapeNowcoder()">搜索牛客</button>
+      </div>
+      <div id="nowcoder-results" style="margin-top:12px"></div>
+    </div>
+  </div>
+
   <!-- ====== 系统配置 ====== -->
   <div id="panel-settings" class="panel">
     <div class="box">
@@ -220,12 +252,13 @@ let DATA={},allJobs=[],allCompanies=[];
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
 
-const TAB_MAP={'overview':'总览','report':'每日报告','companies':'目标公司','profile':'岗位设置','settings':'系统配置'};
+const TAB_MAP={'overview':'总览','report':'每日报告','companies':'目标公司','profile':'岗位设置','sources':'数据源','settings':'系统配置'};
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.textContent===TAB_MAP[name]));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='report'&&!window._reportsLoaded) loadReports();
+  if(name==='sources'&&!window._sourcesLoaded) loadSources();
 }
 
 let _allReports=[];
@@ -479,6 +512,70 @@ function saveConfig(section){
     value={enabled:document.getElementById('cfg-sched-enabled').value==='true',time:document.getElementById('cfg-sched-time').value,mode:document.getElementById('cfg-sched-mode').value,email:true,push:true};
   }
   api('POST','/api/config',{section,value}).then(()=>toast(section+' 配置已保存'));
+}
+
+// ====== 数据源管理 ======
+function loadSources(){
+  window._sourcesLoaded=true;
+  fetch('/api/sources').then(r=>r.json()).then(data=>{
+    const tb=document.getElementById('source-login-table');
+    tb.innerHTML=Object.entries(data).map(([key,info])=>`
+      <tr>
+        <td><strong>${info.name}</strong></td>
+        <td>${info.saved?'<span class="tag high">已保存 '+info.time+'</span>':'<span class="tag low">未登录</span>'}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="doLogin('${key}')">登录</button>
+          ${info.saved?'<button class="btn btn-primary btn-sm" style="margin-left:4px" onclick="doScrape(\''+key+'\')">抓取</button>':''}
+        </td>
+      </tr>
+    `).join('');
+  });
+}
+
+function doLogin(platform){
+  toast('正在打开浏览器，请在弹出窗口中登录...');
+  api('POST','/api/login',{platform}).then(r=>{
+    toast(r.msg||'浏览器已打开');
+    setTimeout(()=>loadSources(),5000);
+  });
+}
+
+function doScrape(source){
+  toast('正在抓取 '+source+'...');
+  api('POST','/api/scrape-source',{source}).then(r=>{
+    if(r.ok) toast('抓取完成: '+r.jobs+'条岗位');
+    else toast('抓取失败: '+(r.error||''));
+    if(r.data&&r.data.length){
+      showSourceResults(r.data);
+    }
+  });
+}
+
+function scrapeNowcoder(){
+  const btn=document.getElementById('btn-nowcoder');
+  const kw=document.getElementById('nowcoder-keyword').value;
+  btn.textContent='搜索中...';btn.disabled=true;
+  api('POST','/api/scrape-source',{source:'nowcoder',keyword:kw}).then(r=>{
+    btn.textContent='搜索牛客';btn.disabled=false;
+    if(r.ok){
+      toast('牛客搜索完成: '+r.jobs+'条');
+      showSourceResults(r.data||[]);
+    }else{
+      toast('搜索失败');
+    }
+  }).catch(()=>{btn.textContent='搜索牛客';btn.disabled=false;});
+}
+
+function showSourceResults(data){
+  const el=document.getElementById('nowcoder-results');
+  if(!data.length){el.innerHTML='<div class="no-data">未找到相关岗位</div>';return;}
+  let html='<table><thead><tr><th>来源</th><th>岗位</th><th>时间</th></tr></thead><tbody>';
+  data.forEach(j=>{
+    const titleHtml=j.url?'<a href="'+j.url+'" target="_blank">'+j.title+'</a>':j.title;
+    html+=`<tr><td>${j.company||j.source}</td><td>${titleHtml}</td><td style="color:#64748b">${(j.scraped_at||'').slice(0,10)}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  el.innerHTML=html;
 }
 </script>
 </body>

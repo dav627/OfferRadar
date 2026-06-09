@@ -190,6 +190,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(content)
         elif self.path == "/api/data":
             self._send_json(collect_data())
+        elif self.path == "/api/sources":
+            from core.sources import get_cookie_status
+            self._send_json(get_cookie_status())
         elif self.path == "/api/report":
             report_dir = DATA_DIR / "每日播报"
             reports = sorted(report_dir.glob("*.md"), reverse=True) if report_dir.exists() else []
@@ -236,6 +239,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     import traceback
                     traceback.print_exc()
                     self._send_json({"ok": False, "error": str(e)}, 500)
+            elif self.path == "/api/login":
+                platform = body.get("platform", "")
+                import threading
+                def _do_login():
+                    from core.sources import login_and_save
+                    login_and_save(platform)
+                threading.Thread(target=_do_login, daemon=True).start()
+                self._send_json({"ok": True, "msg": f"浏览器已打开，请在弹出的窗口中登录{platform}"})
+            elif self.path == "/api/scrape-source":
+                source = body.get("source", "")
+                if source == "nowcoder":
+                    from core.sources import scrape_nowcoder
+                    kw = body.get("keyword", "")
+                    results = scrape_nowcoder(kw)
+                    self._send_json({"ok": True, "jobs": len(results), "data": results})
+                elif source in ("alibaba", "meituan", "kuaishou", "xiaohongshu", "jd", "bilibili", "pinduoduo", "netease"):
+                    from core.sources import scrape_with_cookies
+                    results = scrape_with_cookies(source)
+                    self._send_json({"ok": True, "jobs": len(results), "data": results})
+                else:
+                    self._send_json({"error": "unknown source"}, 400)
             else:
                 self.send_error(404)
         except Exception as e:
