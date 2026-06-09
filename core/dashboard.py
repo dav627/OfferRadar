@@ -24,6 +24,7 @@ PORT = 8686
 
 
 def collect_data() -> dict:
+    from core.db import get_stats, get_all_jobs
     profile = get_profile()
     data = {"stats": {}, "status_dist": {}, "match_dist": {}, "tier_dist": {},
             "trend": {"dates": [], "counts": []}, "jobs": [], "emails": [],
@@ -33,53 +34,23 @@ def collect_data() -> dict:
     companies = []
     if COMPANY_PATH.exists():
         with open(COMPANY_PATH, encoding="utf-8") as f:
-            raw = json.load(f)
-        companies = raw.get("companies", [])
+            companies = json.load(f).get("companies", [])
         data["companies"] = companies
-
     data["tier_dist"] = dict(sorted(Counter(c.get("tier", "?") for c in companies).items()))
 
-    # Excel
-    status_dist = Counter()
-    match_dist = Counter()
-    excel_path = DATA_DIR / "秋招投递跟踪表.xlsx"
-    if excel_path.exists():
-        try:
-            import openpyxl
-            wb = openpyxl.load_workbook(excel_path, read_only=True)
-            ws = wb["投递跟踪表"]
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if row[0]:
-                    status_dist[row[13] or "未知"] += 1
-                    match_dist[row[7] or "未知"] += 1
-            wb.close()
-        except Exception:
-            pass
-    data["status_dist"] = dict(status_dist)
-    data["match_dist"] = dict(match_dist)
+    # 从数据库读取统计（替代 Excel）
+    db_stats = get_stats()
+    data["status_dist"] = db_stats.get("by_status", {})
+    data["match_dist"] = db_stats.get("by_company", {})
 
-    # 最新抓取
-    latest_path = DATA_DIR / "抓取结果" / "latest.json"
-    jobs = []
-    if latest_path.exists():
-        with open(latest_path, encoding="utf-8") as f:
-            jobs = json.load(f).get("jobs", [])
-    data["jobs"] = jobs
-
-    # 趋势
-    scrape_dir = DATA_DIR / "抓取结果"
-    trend = {}
-    if scrape_dir.exists():
-        for f in sorted(scrape_dir.glob("scrape_*.json")):
-            try:
-                with open(f, encoding="utf-8") as fh:
-                    d = json.load(fh)
-                ds = d.get("scraped_at", "")[:10]
-                if ds:
-                    trend[ds] = max(trend.get(ds, 0), d.get("total_jobs", 0))
-            except Exception:
-                pass
-    data["trend"] = {"dates": list(trend.keys()), "counts": list(trend.values())}
+    # 趋势从 scrape_log 表读取
+    trend_dates, trend_counts = [], []
+    for h in reversed(db_stats.get("history", [])):
+        date = h["scraped_at"][:10]
+        if date not in trend_dates:
+            trend_dates.append(date)
+            trend_counts.append(h["total_jobs"])
+    data["trend"] = {"dates": trend_dates, "counts": trend_counts}
 
     # 邮件
     ep = DATA_DIR / "email_results" / "latest.json"
@@ -90,14 +61,13 @@ def collect_data() -> dict:
         except Exception:
             pass
 
-    # config.yaml（只传非敏感字段给前端）
+    # config.yaml（脱敏）
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}
         safe_cfg = {}
         for section in ["llm", "push", "email", "proxy", "schedule"]:
             safe_cfg[section] = cfg.get(section, {})
-        # 脱敏: 只显示是否已填，不传完整 key
         if safe_cfg.get("llm", {}).get("api_key"):
             safe_cfg["llm"]["api_key"] = "sk-****" + safe_cfg["llm"]["api_key"][-4:]
         for ch in ["serverchan", "pushplus", "wecom_bot", "qmsg"]:
@@ -108,10 +78,12 @@ def collect_data() -> dict:
         data["config"] = safe_cfg
 
     data["stats"] = {
-        "companies": len(companies), "jobs": len(jobs),
-        "pending": status_dist.get("待投递", 0),
-        "interview": status_dist.get("面试中", 0),
-        "offer": status_dist.get("offer", 0),
+        "companies": len(companies),
+        "jobs": db_stats.get("total", 0),
+        "pending": db_stats.get("by_status", {}).get("待投递", 0),
+        "interview": db_stats.get("by_status", {}).get("面试中", 0),
+        "offer": db_stats.get("by_status", {}).get("offer", 0),
+        "expiring": db_stats.get("expiring", 0),
         "last_update": datetime.now().strftime("%m-%d %H:%M"),
         "profile": f"{profile['target_role']} · {profile['graduation']}届",
     }
@@ -303,6 +275,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     self._send_json({"ok": True})
                 else:
                     self._send_json({"text": get_resume_text()})
+            elif self.path == "/api/batch-analyze":
+                try:
+                    from core.db import get_all_jobs, _conn
+                    from core.llm import analyze_jobs
+                    pending = get_all_jobs(status="待关注")[:30]
+                    if not pending:
+                        self._send_json({"ok": True, "analyzed": 0})
+                    else:
+                        analyzed = analyze_jobs(pending)
+                        conn = _conn()
+                        count = 0
+                        for j in analyzed:
+                            if j.get("llm_match"):
+                                conn.execute("UPDATE jobs SET match_level=?, llm_reason=? WHERE id=?",
+                                             (j["llm_match"], j.get("llm_reason", ""), j["id"]))
+                                count += 1
+                        conn.commit()
+                        conn.close()
+                        self._send_json({"ok": True, "analyzed": count})
+                except Exception as e:
+                    self._send_json({"ok": False, "error": str(e)}, 500)
             elif self.path == "/api/resume-match":
                 from core.resume_match import match_job
                 result = match_job(body.get("title",""), body.get("company",""), body.get("url",""))

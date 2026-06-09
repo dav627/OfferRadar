@@ -29,26 +29,14 @@ def load_latest_results() -> Optional[dict]:
     return None
 
 
-def load_previous_results() -> Optional[dict]:
-    """Load the second-most-recent results for comparison"""
-    files = sorted(RESULTS_DIR.glob("scrape_*.json"), reverse=True)
-    if len(files) >= 2:
-        with open(files[1], "r", encoding="utf-8") as f:
-            return json.load(f)
-    return None
-
-
-def find_new_jobs(latest: dict, previous: Optional[dict]) -> list:
-    """Find jobs in latest that weren't in previous"""
-    if not previous:
-        return latest.get("jobs", [])
-
-    prev_titles = {(j["company"], j["title"]) for j in previous.get("jobs", [])}
-    new_jobs = []
-    for job in latest.get("jobs", []):
-        if (job["company"], job["title"]) not in prev_titles:
-            new_jobs.append(job)
-    return new_jobs
+def find_new_jobs_from_db() -> list:
+    """从数据库查询今天新增的岗位"""
+    try:
+        from core.db import get_new_jobs
+        today = datetime.now().replace(hour=0, minute=0, second=0).isoformat()
+        return get_new_jobs(since=today)
+    except Exception:
+        return []
 
 
 def generate_daily_report(latest: dict, new_jobs: list) -> str:
@@ -184,8 +172,7 @@ def run():
         print("[ERROR] 未找到抓取结果，请先运行 scraper.py")
         return
 
-    previous = load_previous_results()
-    new_jobs = find_new_jobs(latest, previous)
+    new_jobs = find_new_jobs_from_db()
 
     # Generate report
     report = generate_daily_report(latest, new_jobs)

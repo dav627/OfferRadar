@@ -76,6 +76,13 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
 .banner .msg{font-size:13px;color:#94a3b8}
 .banner .msg strong{color:#fbbf24}
 .banner .close{cursor:pointer;color:#64748b;font-size:18px}
+.kanban-col{flex:1;min-width:180px;background:#1e293b;border-radius:8px;padding:10px;border:1px solid #334155}
+.kanban-col h4{font-size:12px;color:#94a3b8;margin-bottom:8px;text-align:center}
+.kanban-card{background:#0f172a;border-radius:6px;padding:8px 10px;margin-bottom:6px;border:1px solid #334155;font-size:12px;cursor:default}
+.kanban-card:hover{border-color:#475569}
+.kanban-card .kc-company{color:#60a5fa;font-weight:600}
+.kanban-card .kc-title{color:#e2e8f0;margin-top:2px}
+.kanban-count{background:#334155;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px}
 .email-item{padding:8px 0;border-bottom:1px solid #334155}.email-item:last-child{border:none}
 @media(max-width:768px){.cards{grid-template-columns:repeat(3,1fr)}.charts{grid-template-columns:1fr}}
 </style>
@@ -126,13 +133,26 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
       <div class="box"><h3>匹配度</h3><canvas id="chart-match"></canvas></div>
     </div>
     <div class="box">
-      <h3>最新抓取岗位</h3>
+      <h3>岗位管理
+        <span style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="toggleView('table')" id="btn-view-table" style="border-color:#60a5fa">列表</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleView('kanban')" id="btn-view-kanban">看板</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportCSV()">导出CSV</button>
+          <button class="btn btn-ghost btn-sm" id="btn-batch" onclick="batchAnalyze()">AI批量评分</button>
+        </span>
+      </h3>
       <div class="filters">
+        <input id="filter-search" placeholder="搜索岗位/公司..." style="width:200px" oninput="renderJobTable()">
         <select id="filter-company"><option value="">全部公司</option></select>
         <select id="filter-status"><option value="">全部状态</option><option value="待关注">待关注</option><option value="待投递">待投递</option><option value="已投递">已投递</option><option value="面试中">面试中</option><option value="offer">offer</option><option value="已挂">已挂</option></select>
       </div>
-      <table><thead><tr><th>公司</th><th>岗位</th><th>地点</th><th>状态</th><th>截止日期</th><th>发现</th></tr></thead>
-      <tbody id="job-table"></tbody></table>
+      <div id="view-table">
+        <table><thead><tr><th>公司</th><th>岗位</th><th>地点</th><th>状态</th><th>截止日期</th><th>发现</th></tr></thead>
+        <tbody id="job-table"></tbody></table>
+      </div>
+      <div id="view-kanban" style="display:none;overflow-x:auto">
+        <div id="kanban-board" style="display:flex;gap:12px;min-height:300px"></div>
+      </div>
     </div>
     <div id="expiring-box" class="box" style="display:none;border-color:#f59e0b">
       <h3 style="color:#fbbf24">即将截止的岗位（3天内）</h3>
@@ -472,7 +492,8 @@ function loadJobsFromDB(){
 function renderJobTable(){
   const fc=document.getElementById('filter-company').value;
   const fst=document.getElementById('filter-status').value;
-  const filtered=allJobs.filter(j=>(!fc||j.company===fc)&&(!fst||j.status===fst));
+  const search=(document.getElementById('filter-search').value||'').toLowerCase();
+  const filtered=allJobs.filter(j=>(!fc||j.company===fc)&&(!fst||j.status===fst)&&(!search||j.title.toLowerCase().includes(search)||j.company.toLowerCase().includes(search)));
   document.getElementById('job-table').innerHTML=filtered.slice(0,100).map(j=>{
     const url=j.url||'';
     const titleHtml=url&&url.startsWith('http')?`<a href="${url}" target="_blank">${j.title}</a>`:j.title;
@@ -501,6 +522,52 @@ function changeStatus(jobId,newStatus){
 
 function setDeadline(jobId,date){
   api('POST','/api/job-deadline',{id:jobId,deadline:date}).then(()=>toast('截止日期已设置'));
+}
+
+function toggleView(view){
+  document.getElementById('view-table').style.display=view==='table'?'block':'none';
+  document.getElementById('view-kanban').style.display=view==='kanban'?'block':'none';
+  document.getElementById('btn-view-table').style.borderColor=view==='table'?'#60a5fa':'#475569';
+  document.getElementById('btn-view-kanban').style.borderColor=view==='kanban'?'#60a5fa':'#475569';
+  if(view==='kanban') renderKanban();
+}
+
+function renderKanban(){
+  const board=document.getElementById('kanban-board');
+  const cols={};
+  STATUS_FLOW.forEach(s=>cols[s]=[]);
+  allJobs.forEach(j=>{if(cols[j.status])cols[j.status].push(j);});
+  const colorMap={'待关注':'#64748b','待投递':'#60a5fa','已投递':'#a78bfa','面试中':'#34d399','offer':'#fbbf24','已挂':'#f87171'};
+  board.innerHTML=STATUS_FLOW.map(s=>`
+    <div class="kanban-col" style="border-top:3px solid ${colorMap[s]||'#475569'}">
+      <h4>${s} <span class="kanban-count">${cols[s].length}</span></h4>
+      ${cols[s].slice(0,20).map(j=>`<div class="kanban-card"><div class="kc-company">${j.company}</div><div class="kc-title">${j.title.slice(0,30)}</div>${j.deadline?'<div style="color:#fbbf24;font-size:11px;margin-top:2px">截止 '+j.deadline+'</div>':''}</div>`).join('')}
+      ${cols[s].length>20?'<div style="color:#64748b;text-align:center;font-size:11px">+' +(cols[s].length-20)+ ' more</div>':''}
+    </div>
+  `).join('');
+}
+
+function exportCSV(){
+  let csv='公司,岗位,地点,状态,截止日期,发现时间,来源,链接\\n';
+  allJobs.forEach(j=>{
+    csv+=`"${j.company}","${j.title}","${j.location||''}","${j.status}","${j.deadline||''}","${(j.first_seen||'').slice(0,10)}","${j.source||''}","${j.url||''}"\\n`;
+  });
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='OfferRadar_jobs_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  toast('已导出 '+allJobs.length+' 条岗位');
+}
+
+function batchAnalyze(){
+  const btn=document.getElementById('btn-batch');
+  btn.textContent='分析中...';btn.disabled=true;
+  api('POST','/api/batch-analyze',{}).then(r=>{
+    btn.textContent='AI批量评分';btn.disabled=false;
+    if(r.ok) toast('批量分析完成: '+r.analyzed+'条');
+    else toast('分析失败: '+(r.error||''));
+  }).catch(()=>{btn.textContent='AI批量评分';btn.disabled=false;});
 }
 
 function renderCompanyTable(){
