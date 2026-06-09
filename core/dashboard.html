@@ -177,17 +177,21 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
       <div style="text-align:right;margin-top:10px"><button class="btn btn-primary btn-sm" onclick="saveConfig('llm')">保存</button></div>
     </div>
     <div class="box">
-      <h3>微信推送（可选）<span style="font-size:11px;color:#64748b;font-weight:400">推荐 Server酱 https://sct.ftqq.com/</span></h3>
-      <div class="form-row"><label>Server酱 Key</label><input id="cfg-push-sc" placeholder="SCTxxx（https://sct.ftqq.com/ 获取）"></div>
+      <h3>微信推送（可选）</h3>
+      <p style="font-size:12px;color:#64748b;margin-bottom:12px">Server酱是一个微信公众号推送服务，关注后即可接收消息。访问 <a href="https://sct.ftqq.com/" target="_blank">sct.ftqq.com</a> 微信扫码注册，获取 SendKey 填入下方。PushPlus 同理。</p>
+      <div class="form-row"><label>Server酱 Key</label><input id="cfg-push-sc" placeholder="SCTxxx（微信扫码注册后获取）"></div>
       <div class="form-row"><label>PushPlus Token</label><input id="cfg-push-pp" placeholder="留空则不启用（https://www.pushplus.plus/）"></div>
       <div style="text-align:right;margin-top:10px"><button class="btn btn-primary btn-sm" onclick="savePush()">保存</button></div>
     </div>
     <div class="box">
-      <h3>邮箱监控（可选）<span style="font-size:11px;color:#64748b;font-weight:400">监控笔试/面试/offer通知</span></h3>
+      <h3>邮箱监控（可选）<span style="font-size:11px;color:#64748b;font-weight:400">监控笔试/面试/offer邮件</span></h3>
+      <p style="font-size:12px;color:#64748b;margin-bottom:12px">配置后，每次运行或点击「立即更新」时会自动检查最近3天的未读招聘邮件。不配置则跳过邮件检查。</p>
       <div class="form-row"><label>方式</label><select id="cfg-email-method"><option value="">不启用</option><option value="imap">IMAP（163/QQ/Outlook）</option><option value="gmail_api">Gmail API</option></select></div>
-      <div class="form-row"><label>邮箱地址</label><input id="cfg-email-addr" placeholder="yourname@163.com"></div>
-      <div class="form-row"><label>授权码/密码</label><input id="cfg-email-pass" type="password" placeholder="IMAP授权码（非登录密码）"></div>
-      <div class="form-row"><label>邮箱类型</label><select id="cfg-email-provider"><option value="">自动检测</option><option value="163">163</option><option value="qq">QQ</option><option value="126">126</option><option value="outlook">Outlook</option><option value="gmail">Gmail</option></select></div>
+      <div id="email-imap-fields">
+        <div class="form-row"><label>邮箱地址</label><input id="cfg-email-addr" placeholder="yourname@163.com"></div>
+        <div class="form-row"><label>授权码/密码</label><input id="cfg-email-pass" type="password" placeholder="IMAP授权码（非登录密码）"></div>
+        <div class="form-row"><label>邮箱类型</label><select id="cfg-email-provider"><option value="">自动检测</option><option value="163">163</option><option value="qq">QQ</option><option value="126">126</option><option value="outlook">Outlook</option><option value="gmail">Gmail</option></select></div>
+      </div>
       <div style="text-align:right;margin-top:10px"><button class="btn btn-primary btn-sm" onclick="saveConfig('email')">保存</button></div>
     </div>
     <div class="box">

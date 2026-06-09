@@ -12,6 +12,7 @@ import asyncio
 import sys
 from datetime import datetime
 from pathlib import Path
+from core import PROJECT_ROOT
 
 
 USE_LITE = "--lite" in sys.argv
@@ -52,19 +53,24 @@ async def main():
     # Step 2: 邮箱监控
     email_report = ""
     if not SKIP_EMAIL:
-        print(f"\n[Step {step}/{total_steps}] 检查招聘邮件...")
-        print("-" * 40)
-        try:
-            from core import config as config_loader
-            from core.email_monitor import fetch_emails, generate_email_report, save_results
-            cfg = config_loader.get_email_config()
-            emails = fetch_emails(cfg, days=1)
-            if emails:
-                save_results(emails)
-                email_report = generate_email_report(emails)
-        except Exception as e:
-            print(f"[WARN] 邮箱监控失败: {e}")
-            print("  请在 config.yaml 的 email 段配置邮箱")
+        from core import config as config_loader
+        cfg = config_loader.get_email_config()
+        method = cfg.get("method", "")
+        has_imap = method == "imap" and cfg.get("address") and cfg.get("password")
+        has_gmail = method == "gmail_api" or (not method and (PROJECT_ROOT / "token.json").exists())
+        if has_imap or has_gmail:
+            print(f"\n[Step {step}/{total_steps}] 检查招聘邮件...")
+            print("-" * 40)
+            try:
+                from core.email_monitor import fetch_emails, generate_email_report, save_results
+                emails = fetch_emails(cfg, days=1)
+                if emails:
+                    save_results(emails)
+                    email_report = generate_email_report(emails)
+            except Exception as e:
+                print(f"[WARN] 邮箱监控失败: {e}")
+        else:
+            print(f"\n[Step {step}/{total_steps}] 邮箱未配置，跳过")
         step += 1
 
     # Step 3: 播报 + Excel
