@@ -139,12 +139,58 @@ def scrape_huawei() -> list:
     return extract_jobs_from_html(html, "华为", url)
 
 
+def scrape_tencent() -> list:
+    """腾讯 - 官方 API（校招 type=2）"""
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    jobs = []
+    for kw in KEYWORDS[:3]:
+        kw_enc = urllib.parse.quote(kw)
+        url = f"https://careers.tencent.com/tencentcareer/api/post/Query?keyword={kw_enc}&pageIndex=0&pageSize=20&language=zh-cn&area=cn&type=2"
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": HEADERS["User-Agent"],
+                "Accept": "application/json",
+                "Referer": "https://careers.tencent.com/",
+            })
+            raw = urllib.request.urlopen(req, timeout=10, context=ctx).read()
+            data = json.loads(raw)
+            posts = data.get("Data", {}).get("Posts") or []
+            for p in posts:
+                title = p.get("RecruitPostName", "")
+                if not title:
+                    continue
+                if any(ex in title for ex in EXCLUDE_KEYWORDS):
+                    continue
+                post_id = p.get("PostId", "")
+                jobs.append({
+                    "company": "腾讯",
+                    "title": title,
+                    "department": p.get("BGName", ""),
+                    "location": p.get("LocationName", ""),
+                    "url": f"https://careers.tencent.com/jobdesc.html?postId={post_id}" if post_id else "",
+                    "source": "tencent_api",
+                    "scraped_at": datetime.now().isoformat(),
+                })
+        except Exception as e:
+            print(f"  [WARN] 腾讯API({kw}): {e}")
+    # 去重
+    seen = set()
+    unique = []
+    for j in jobs:
+        if j["title"] not in seen:
+            seen.add(j["title"])
+            unique.append(j)
+    return unique
+
+
 def scrape_generic(company: dict) -> list:
     """通用抓取 - 尝试已知招聘页面模式"""
     name = company["name"]
-    urls_to_try = []
 
-    # Common URL patterns for Chinese tech companies
     url_patterns = {
         "美团": ["https://campus.meituan.com"],
         "快手": ["https://zhaopin.kuaishou.cn"],
@@ -179,9 +225,12 @@ def run():
 
     all_jobs = []
 
-    # Company-specific scrapers
+    # Company-specific scrapers (有专用API或解析方式的公司)
     print("[INFO] 抓取字节跳动...")
     all_jobs.extend(scrape_bytedance())
+
+    print("[INFO] 抓取腾讯...")
+    all_jobs.extend(scrape_tencent())
 
     print("[INFO] 抓取华为...")
     all_jobs.extend(scrape_huawei())
