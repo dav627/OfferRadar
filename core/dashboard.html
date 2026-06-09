@@ -56,17 +56,26 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
 .toast{position:fixed;top:20px;right:20px;background:#065f46;color:#34d399;padding:12px 20px;border-radius:8px;font-size:13px;opacity:0;transition:.3s;z-index:999}
 .toast.show{opacity:1}
 .no-data{color:#64748b;font-style:italic;padding:16px;text-align:center}
-.md h1{font-size:20px;color:#60a5fa;margin:16px 0 8px;border-bottom:1px solid #334155;padding-bottom:8px}
-.md h2{font-size:16px;color:#a78bfa;margin:14px 0 6px}
-.md h3{font-size:14px;color:#34d399;margin:10px 0 4px}
-.md p{margin:6px 0}.md ul,.md ol{margin:4px 0 4px 20px}
-.md table{width:100%;border-collapse:collapse;margin:8px 0;font-size:13px}
-.md th{background:#334155;padding:6px 10px;text-align:left;border:1px solid #475569}
-.md td{padding:6px 10px;border:1px solid #334155}
-.md blockquote{border-left:3px solid #60a5fa;padding:8px 14px;margin:8px 0;background:#1e293b;border-radius:0 6px 6px 0}
+.md{text-align:left;line-height:1.7}
+.md h1{font-size:20px;color:#60a5fa;margin:20px 0 10px;border-bottom:1px solid #334155;padding-bottom:8px}
+.md h2{font-size:17px;color:#a78bfa;margin:18px 0 8px}
+.md h3{font-size:15px;color:#34d399;margin:14px 0 6px}
+.md p{margin:6px 0}
+.md ul{margin:6px 0 6px 20px;list-style:disc}
+.md li{margin:3px 0}
+.md table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+.md th{background:#334155;padding:8px 12px;text-align:left;border:1px solid #475569;font-weight:600}
+.md td{padding:8px 12px;border:1px solid #334155;text-align:left}
+.md tr:hover td{background:rgba(51,65,85,.4)}
+.md blockquote{border-left:3px solid #60a5fa;padding:10px 16px;margin:10px 0;background:#1e293b;border-radius:0 6px 6px 0;color:#94a3b8}
 .md code{background:#334155;padding:1px 5px;border-radius:3px;font-size:12px}
-.md hr{border:none;border-top:1px solid #334155;margin:12px 0}
+.md hr{border:none;border-top:1px solid #334155;margin:16px 0}
 .md strong{color:#fbbf24}
+.md em{color:#94a3b8;font-style:italic}
+.banner{background:linear-gradient(135deg,#1e3a5f,#312e81);border:1px solid #475569;border-radius:10px;padding:16px 20px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.banner .msg{font-size:13px;color:#94a3b8}
+.banner .msg strong{color:#fbbf24}
+.banner .close{cursor:pointer;color:#64748b;font-size:18px}
 .email-item{padding:8px 0;border-bottom:1px solid #334155}.email-item:last-child{border:none}
 @media(max-width:768px){.cards{grid-template-columns:repeat(3,1fr)}.charts{grid-template-columns:1fr}}
 </style>
@@ -88,6 +97,15 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
     <div class="tab" onclick="switchTab('companies')">目标公司</div>
     <div class="tab" onclick="switchTab('profile')">岗位设置</div>
     <div class="tab" onclick="switchTab('settings')">系统配置</div>
+  </div>
+
+  <!-- ====== LLM 提示 ====== -->
+  <div id="llm-banner" class="banner" style="display:none">
+    <div class="msg">
+      <strong>提示：</strong>未检测到 LLM API 配置。配置后可解锁：<strong>AI 岗位匹配分析</strong>、<strong>智能每日播报总结</strong>。
+      前往「系统配置」填写 API Key（推荐 DeepSeek，约 ¥0.1/天）。
+    </div>
+    <span class="close" onclick="this.parentElement.style.display='none'">&times;</span>
   </div>
 
   <!-- ====== 总览 ====== -->
@@ -221,28 +239,56 @@ function loadReports(){
 function showReport(idx){
   const r=_allReports[idx];
   if(!r) return;
-  document.getElementById('report-content').innerHTML='<div class="md">'+mdToHtml(r.content)+'</div>';
+  let html='<div class="md">'+mdToHtml(r.content)+'</div>';
+  if(!r.content.includes('AI 分析')){
+    html='<div class="banner" style="margin-bottom:16px"><div class="msg">此报告未包含 AI 分析。配置 LLM API Key 后点击「立即更新」可生成智能分析。</div></div>'+html;
+  }
+  document.getElementById('report-content').innerHTML=html;
 }
+
 function mdToHtml(md){
-  return md
-    .replace(/^### (.*$)/gm,'<h3>$1</h3>')
-    .replace(/^## (.*$)/gm,'<h2>$1</h2>')
-    .replace(/^# (.*$)/gm,'<h1>$1</h1>')
-    .replace(/^\> (.*$)/gm,'<blockquote>$1</blockquote>')
-    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
-    .replace(/^\- (.*$)/gm,'<li>$1</li>')
-    .replace(/^(\d+)\. (.*$)/gm,'<li>$2</li>')
-    .replace(/\n{2,}/g,'<br><br>')
-    .replace(/\|(.+)\|/g,function(match){
-      const cells=match.split('|').filter(c=>c.trim());
-      if(cells.every(c=>/^[\s\-:]+$/.test(c))) return '';
-      const tag=cells.some(c=>/^[\s\-:]+$/.test(c))?'td':'td';
-      return '<tr>'+cells.map(c=>'<'+tag+'>'+c.trim()+'</'+tag+'>').join('')+'</tr>';
-    })
-    .replace(/(<tr>.*<\/tr>\n?)+/g,'<table>$&</table>')
-    .replace(/^---$/gm,'<hr>')
-    .replace(/`([^`]+)`/g,'<code>$1</code>')
-    .replace(/\n/g,'<br>');
+  const lines=md.split('\n');
+  let html='',inTable=false,isFirstTableRow=true;
+  for(let i=0;i<lines.length;i++){
+    let line=lines[i];
+    // Table separator row (---|---)
+    if(/^\|[\s\-:]+\|/.test(line)&&line.replace(/[\s\-:|]/g,'')===''){
+      continue;
+    }
+    // Table data row
+    if(/^\|(.+)\|$/.test(line)){
+      const cells=line.split('|').slice(1,-1);
+      if(!inTable){inTable=true;isFirstTableRow=true;html+='<table>';}
+      if(isFirstTableRow){
+        html+='<thead><tr>'+cells.map(c=>'<th>'+inline(c.trim())+'</th>').join('')+'</tr></thead><tbody>';
+        isFirstTableRow=false;
+      }else{
+        html+='<tr>'+cells.map(c=>'<td>'+inline(c.trim())+'</td>').join('')+'</tr>';
+      }
+      continue;
+    }
+    if(inTable){html+='</tbody></table>';inTable=false;}
+    if(/^### (.+)/.test(line)){html+='<h3>'+inline(RegExp.$1)+'</h3>';continue;}
+    if(/^## (.+)/.test(line)){html+='<h2>'+inline(RegExp.$1)+'</h2>';continue;}
+    if(/^# (.+)/.test(line)){html+='<h1>'+inline(RegExp.$1)+'</h1>';continue;}
+    if(/^> (.+)/.test(line)){html+='<blockquote>'+inline(RegExp.$1)+'</blockquote>';continue;}
+    if(/^- (.+)/.test(line)){html+='<ul><li>'+inline(RegExp.$1)+'</li></ul>';continue;}
+    if(/^\d+\. (.+)/.test(line)){html+='<ul><li>'+inline(RegExp.$1)+'</li></ul>';continue;}
+    if(/^---$/.test(line)){html+='<hr>';continue;}
+    if(line.trim()===''){html+='<br>';continue;}
+    html+='<p>'+inline(line)+'</p>';
+  }
+  if(inTable) html+='</tbody></table>';
+  // merge adjacent <ul>
+  html=html.replace(/<\/ul>\s*<ul>/g,'');
+  return html;
+}
+
+function inline(s){
+  return s
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>');
 }
 
 function api(method,path,body){
@@ -331,6 +377,12 @@ fetch('/api/data').then(r=>r.json()).then(data=>{
   document.getElementById('cfg-sched-enabled').value=String((cfg.schedule||{}).enabled||false);
   document.getElementById('cfg-sched-time').value=(cfg.schedule||{}).time||'09:00';
   document.getElementById('cfg-sched-mode').value=(cfg.schedule||{}).mode||'lite';
+
+  // LLM 未配置提示
+  const llmKey=(cfg.llm||{}).api_key||'';
+  if(!llmKey||llmKey===''){
+    document.getElementById('llm-banner').style.display='flex';
+  }
 });
 
 function renderJobTable(){
