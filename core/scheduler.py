@@ -138,8 +138,17 @@ def run_scheduled_scrape(run_count: int = 1) -> dict:
             record_result(name, False)
             errors.append(f"{name}: {e}")
 
-    # Phase 3: 牛客聚合
-    print("[调度] Phase 3: 牛客聚合")
+    # Phase 3: 插件爬虫
+    print("[调度] Phase 3: 插件爬虫")
+    try:
+        from scrapers import run_all_plugins
+        plugin_jobs = run_all_plugins()
+        all_jobs.extend(plugin_jobs)
+    except Exception as e:
+        errors.append(f"插件: {e}")
+
+    # Phase 4: 牛客聚合
+    print("[调度] Phase 4: 牛客聚合")
     try:
         from core.sources import scrape_nowcoder
         nowcoder = scrape_nowcoder()
@@ -147,7 +156,7 @@ def run_scheduled_scrape(run_count: int = 1) -> dict:
     except Exception as e:
         errors.append(f"牛客: {e}")
 
-    # Phase 4: Cookie 公司
+    # Phase 5: Cookie 公司
     try:
         from core.sources import get_cookie_status, scrape_with_cookies
         for key, info in get_cookie_status().items():

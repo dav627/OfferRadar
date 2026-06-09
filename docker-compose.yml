@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  offerradar:
+    build: .
+    ports:
+      - "8686:8686"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./公司清单.json:/app/公司清单.json
+      - offerradar-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  offerradar-data:

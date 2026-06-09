@@ -1,5 +1,9 @@
 # OfferRadar — 秋招信息自动收集 Agent
 
+[![CI](https://github.com/dav627/OfferRadar/actions/workflows/ci.yml/badge.svg)](https://github.com/dav627/OfferRadar/actions)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 > 自动抓取校招信息 → LLM 智能分析匹配度 → Excel 跟踪表 → 每日播报 → 微信推送 → 邮箱监控
 >
 > **任何求职方向均可使用** | 只需修改一个配置文件 | macOS / Windows / Linux
@@ -114,6 +118,8 @@ $ python3 launcher.py status
 
 ## 一键启动（推荐）
 
+### 方式 A：本地启动
+
 ```bash
 git clone https://github.com/dav627/OfferRadar.git
 cd OfferRadar
@@ -130,6 +136,17 @@ start.bat
 首次运行会生成 `config.yaml`，脚本会提示你编辑它。填好后再次运行 `./start.sh` 即可启动。
 
 > 仪表盘启动后，**所有配置都可以在网页界面上直接修改**（目标公司、岗位关键词、LLM Key、推送渠道、定时任务等），无需再手动编辑文件。
+
+### 方式 B：Docker 部署
+
+```bash
+git clone https://github.com/dav627/OfferRadar.git
+cd OfferRadar
+cp config.yaml.example config.yaml
+docker-compose up -d
+```
+
+浏览器打开 http://localhost:8686 ，在网页上完成所有配置。
 
 ---
 
