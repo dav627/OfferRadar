@@ -96,6 +96,7 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
     <div class="tab" onclick="switchTab('report')">每日报告</div>
     <div class="tab" onclick="switchTab('companies')">目标公司</div>
     <div class="tab" onclick="switchTab('profile')">岗位设置</div>
+    <div class="tab" onclick="switchTab('resume')">简历匹配</div>
     <div class="tab" onclick="switchTab('sources')">数据源</div>
     <div class="tab" onclick="switchTab('settings')">系统配置</div>
   </div>
@@ -130,8 +131,12 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
         <select id="filter-company"><option value="">全部公司</option></select>
         <select id="filter-status"><option value="">全部状态</option><option value="待关注">待关注</option><option value="待投递">待投递</option><option value="已投递">已投递</option><option value="面试中">面试中</option><option value="offer">offer</option><option value="已挂">已挂</option></select>
       </div>
-      <table><thead><tr><th>公司</th><th>岗位</th><th>地点</th><th>状态</th><th>发现时间</th></tr></thead>
+      <table><thead><tr><th>公司</th><th>岗位</th><th>地点</th><th>状态</th><th>截止日期</th><th>发现</th></tr></thead>
       <tbody id="job-table"></tbody></table>
+    </div>
+    <div id="expiring-box" class="box" style="display:none;border-color:#f59e0b">
+      <h3 style="color:#fbbf24">即将截止的岗位（3天内）</h3>
+      <div id="expiring-list"></div>
     </div>
     <div class="box"><h3>邮件通知（3天未读）</h3><div id="email-list"><div class="no-data">暂无</div></div></div>
   </div>
@@ -165,6 +170,24 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
       <div class="form-row"><label>搜索关键词</label><div class="tag-input" id="kw-include"></div></div>
       <div class="form-row"><label>排除关键词</label><div class="tag-input" id="kw-exclude"></div></div>
       <div style="text-align:right;margin-top:14px"><button class="btn btn-primary" onclick="saveProfile()">保存求职画像</button></div>
+    </div>
+  </div>
+
+  <!-- ====== 简历匹配 ====== -->
+  <div id="panel-resume" class="panel">
+    <div class="box">
+      <h3>我的简历</h3>
+      <p style="font-size:12px;color:#64748b;margin-bottom:10px">粘贴你的简历内容（纯文本即可），用于 LLM 对比岗位 JD 分析匹配度。保存在本地，不会上传到任何服务器。</p>
+      <textarea id="resume-text" rows="10" placeholder="粘贴你的简历内容...&#10;&#10;示例：&#10;教育背景：xxx大学 计算机科学硕士&#10;技能：Python, PyTorch, RLHF, RAG...&#10;实习经历：xxx公司 大模型算法工程师..."></textarea>
+      <div style="text-align:right;margin-top:10px"><button class="btn btn-primary" onclick="saveResume()">保存简历</button></div>
+    </div>
+    <div class="box">
+      <h3>匹配分析 <span style="font-size:11px;color:#64748b;font-weight:400">选择一个岗位，AI 分析匹配度</span></h3>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <select id="match-job-select" style="flex:1"><option value="">选择岗位...</option></select>
+        <button class="btn btn-primary" id="btn-match" onclick="analyzeMatch()">分析匹配度</button>
+      </div>
+      <div id="match-result" class="no-data">选择一个岗位后点击「分析匹配度」</div>
     </div>
   </div>
 
@@ -252,12 +275,13 @@ let DATA={},allJobs=[],allCompanies=[];
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
 
-const TAB_MAP={'overview':'总览','report':'每日报告','companies':'目标公司','profile':'岗位设置','sources':'数据源','settings':'系统配置'};
+const TAB_MAP={'overview':'总览','report':'每日报告','companies':'目标公司','profile':'岗位设置','resume':'简历匹配','sources':'数据源','settings':'系统配置'};
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.textContent===TAB_MAP[name]));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='report'&&!window._reportsLoaded) loadReports();
+  if(name==='resume'&&!window._resumeLoaded) loadResume();
   if(name==='sources'&&!window._sourcesLoaded) loadSources();
 }
 
@@ -423,12 +447,25 @@ function loadJobsFromDB(){
     allJobs=d.jobs||[];
     const companies=[...new Set(allJobs.map(j=>j.company))].sort();
     const fc=document.getElementById('filter-company');
-    // Keep first option, clear rest
     while(fc.options.length>1) fc.remove(1);
     companies.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;fc.appendChild(o)});
     fc.onchange=renderJobTable;
     document.getElementById('filter-status').onchange=renderJobTable;
     renderJobTable();
+    // Expiring jobs
+    const exp=d.expiring||[];
+    const box=document.getElementById('expiring-box');
+    if(exp.length>0){
+      box.style.display='block';
+      document.getElementById('expiring-list').innerHTML=exp.map(j=>{
+        const days=Math.ceil((new Date(j.deadline)-new Date())/(86400000));
+        const urgent=days<=1?'color:#f87171;font-weight:bold':'color:#fbbf24';
+        return `<div style="padding:6px 0;border-bottom:1px solid #334155">
+          <strong>${j.company}</strong> — ${j.title}
+          <span style="${urgent};margin-left:8px">${days<=0?'今天截止':'还剩'+days+'天'} (${j.deadline})</span>
+        </div>`;
+      }).join('');
+    }else{box.style.display='none';}
   });
 }
 
@@ -440,6 +477,8 @@ function renderJobTable(){
     const url=j.url||'';
     const titleHtml=url&&url.startsWith('http')?`<a href="${url}" target="_blank">${j.title}</a>`:j.title;
     const statusCls=STATUS_COLORS[j.status]||'C';
+    const dlVal=j.deadline||'';
+    const dlUrgent=dlVal&&((new Date(dlVal)-new Date())/86400000)<=3;
     return `<tr>
       <td><strong>${j.company}</strong></td>
       <td>${titleHtml}</td>
@@ -447,16 +486,21 @@ function renderJobTable(){
       <td><select class="tag ${statusCls}" style="cursor:pointer;padding:2px 6px" onchange="changeStatus(${j.id},this.value)">
         ${STATUS_FLOW.map(s=>`<option value="${s}"${s===j.status?' selected':''}>${s}</option>`).join('')}
       </select></td>
-      <td style="color:#64748b;font-size:12px">${(j.first_seen||'').slice(0,10)}</td>
+      <td><input type="date" value="${dlVal}" style="background:transparent;border:1px solid ${dlUrgent?'#f59e0b':'#475569'};color:${dlUrgent?'#fbbf24':'#94a3b8'};border-radius:4px;padding:2px 4px;font-size:11px;width:110px" onchange="setDeadline(${j.id},this.value)"></td>
+      <td style="color:#64748b;font-size:11px">${(j.first_seen||'').slice(0,10)}</td>
     </tr>`;
-  }).join('')||'<tr><td colspan="5" class="no-data">暂无岗位数据，请先点击「立即更新」</td></tr>';
+  }).join('')||'<tr><td colspan="6" class="no-data">暂无岗位数据，请先点击「立即更新」</td></tr>';
 }
 
 function changeStatus(jobId,newStatus){
   api('POST','/api/job-status',{id:jobId,status:newStatus}).then(()=>{
-    toast('已更新为: '+newStatus);
+    toast('已更新: '+newStatus);
     loadJobsFromDB();
   });
+}
+
+function setDeadline(jobId,date){
+  api('POST','/api/job-deadline',{id:jobId,deadline:date}).then(()=>toast('截止日期已设置'));
 }
 
 function renderCompanyTable(){
@@ -537,6 +581,42 @@ function saveConfig(section){
     value={enabled:document.getElementById('cfg-sched-enabled').value==='true',time:document.getElementById('cfg-sched-time').value,mode:document.getElementById('cfg-sched-mode').value,email:true,push:true};
   }
   api('POST','/api/config',{section,value}).then(()=>toast(section+' 配置已保存'));
+}
+
+// ====== 简历匹配 ======
+function loadResume(){
+  window._resumeLoaded=true;
+  fetch('/api/resume').then(r=>r.json()).then(d=>{
+    document.getElementById('resume-text').value=d.text||'';
+    // Populate job selector
+    const sel=document.getElementById('match-job-select');
+    sel.innerHTML='<option value="">选择岗位...</option>';
+    allJobs.forEach(j=>{
+      const o=document.createElement('option');
+      o.value=JSON.stringify({title:j.title,company:j.company,url:j.url||''});
+      o.textContent=`${j.company} - ${j.title}`;
+      sel.appendChild(o);
+    });
+  });
+}
+function saveResume(){
+  const text=document.getElementById('resume-text').value;
+  api('POST','/api/resume',{text}).then(()=>toast('简历已保存'));
+}
+function analyzeMatch(){
+  const sel=document.getElementById('match-job-select');
+  if(!sel.value){toast('请先选择岗位');return;}
+  const job=JSON.parse(sel.value);
+  const btn=document.getElementById('btn-match');
+  btn.textContent='分析中...';btn.disabled=true;
+  api('POST','/api/resume-match',job).then(r=>{
+    btn.textContent='分析匹配度';btn.disabled=false;
+    if(r.error){
+      document.getElementById('match-result').innerHTML=`<div style="color:#f87171">${r.error}</div>`;
+    }else{
+      document.getElementById('match-result').innerHTML=`<div class="md"><h3>${r.job}</h3>${mdToHtml(r.analysis)}</div>`;
+    }
+  }).catch(()=>{btn.textContent='分析匹配度';btn.disabled=false;});
 }
 
 // ====== 数据源管理 ======

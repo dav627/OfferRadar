@@ -1,11 +1,10 @@
 """
 SQLite 岗位数据库
-持久化存储所有抓取过的岗位，自动去重，记录首次发现时间和状态变化
+持久化存储、去重、状态管理、截止日期追踪
 """
 
 import sqlite3
-import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from core import DATA_DIR
 
@@ -27,6 +26,7 @@ def _conn():
         first_seen TEXT NOT NULL,
         last_seen TEXT NOT NULL,
         status TEXT DEFAULT '待关注',
+        deadline TEXT DEFAULT '',
         match_level TEXT DEFAULT '',
         llm_reason TEXT DEFAULT '',
         notes TEXT DEFAULT '',
@@ -39,12 +39,16 @@ def _conn():
         new_jobs INTEGER,
         source TEXT DEFAULT 'lite'
     )""")
+    # Add deadline column if not exists (migration)
+    try:
+        conn.execute("ALTER TABLE jobs ADD COLUMN deadline TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     return conn
 
 
 def upsert_jobs(jobs: list) -> dict:
-    """插入或更新岗位，返回新增和总数"""
     conn = _conn()
     now = datetime.now().isoformat()
     new_count = 0
@@ -55,17 +59,16 @@ def upsert_jobs(jobs: list) -> dict:
             continue
         try:
             conn.execute(
-                "INSERT INTO jobs (company, title, department, location, url, source, first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO jobs (company,title,department,location,url,source,first_seen,last_seen) VALUES (?,?,?,?,?,?,?,?)",
                 (company, title, j.get("department", ""), j.get("location", ""),
-                 j.get("url", ""), j.get("source", ""), now, now)
-            )
+                 j.get("url", ""), j.get("source", ""), now, now))
             new_count += 1
         except sqlite3.IntegrityError:
             conn.execute(
-                "UPDATE jobs SET last_seen=?, url=CASE WHEN url='' THEN ? ELSE url END, location=CASE WHEN location='' THEN ? ELSE location END WHERE company=? AND title=?",
-                (now, j.get("url", ""), j.get("location", ""), company, title)
-            )
-    conn.execute("INSERT INTO scrape_log (scraped_at, total_jobs, new_jobs) VALUES (?,?,?)",
+                "UPDATE jobs SET last_seen=?, url=CASE WHEN url='' THEN ? ELSE url END, "
+                "location=CASE WHEN location='' THEN ? ELSE location END WHERE company=? AND title=?",
+                (now, j.get("url", ""), j.get("location", ""), company, title))
+    conn.execute("INSERT INTO scrape_log (scraped_at,total_jobs,new_jobs) VALUES (?,?,?)",
                  (now, len(jobs), new_count))
     conn.commit()
     conn.close()
@@ -74,26 +77,21 @@ def upsert_jobs(jobs: list) -> dict:
 
 def get_all_jobs(status: str = "", company: str = "") -> list:
     conn = _conn()
-    query = "SELECT * FROM jobs WHERE 1=1"
-    params = []
+    q = "SELECT * FROM jobs WHERE 1=1"
+    p = []
     if status:
-        query += " AND status=?"
-        params.append(status)
+        q += " AND status=?"; p.append(status)
     if company:
-        query += " AND company=?"
-        params.append(company)
-    query += " ORDER BY first_seen DESC"
-    rows = conn.execute(query, params).fetchall()
+        q += " AND company=?"; p.append(company)
+    q += " ORDER BY first_seen DESC"
+    rows = conn.execute(q, p).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 def get_new_jobs(since: str = "") -> list:
-    """获取自某个时间点以来新增的岗位"""
     conn = _conn()
     if not since:
-        # Default: last 24 hours
-        from datetime import timedelta
         since = (datetime.now() - timedelta(days=1)).isoformat()
     rows = conn.execute("SELECT * FROM jobs WHERE first_seen > ? ORDER BY first_seen DESC", (since,)).fetchall()
     conn.close()
@@ -108,6 +106,34 @@ def update_job_status(job_id: int, status: str) -> bool:
     return True
 
 
+def update_job_deadline(job_id: int, deadline: str) -> bool:
+    conn = _conn()
+    conn.execute("UPDATE jobs SET deadline=? WHERE id=?", (deadline, job_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def update_job_notes(job_id: int, notes: str) -> bool:
+    conn = _conn()
+    conn.execute("UPDATE jobs SET notes=? WHERE id=?", (notes, job_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_expiring_jobs(days: int = 3) -> list:
+    """获取 N 天内截止的岗位"""
+    conn = _conn()
+    now = datetime.now().strftime("%Y-%m-%d")
+    future = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+    rows = conn.execute(
+        "SELECT * FROM jobs WHERE deadline != '' AND deadline >= ? AND deadline <= ? AND status NOT IN ('已挂','offer') ORDER BY deadline",
+        (now, future)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def get_stats() -> dict:
     conn = _conn()
     total = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
@@ -117,12 +143,18 @@ def get_stats() -> dict:
     by_company = {}
     for row in conn.execute("SELECT company, COUNT(*) as cnt FROM jobs GROUP BY company ORDER BY cnt DESC"):
         by_company[row["company"]] = row["cnt"]
-    # Scrape history
+    # Expiring
+    now = datetime.now().strftime("%Y-%m-%d")
+    future3 = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+    expiring = conn.execute(
+        "SELECT COUNT(*) FROM jobs WHERE deadline != '' AND deadline >= ? AND deadline <= ?",
+        (now, future3)).fetchone()[0]
     history = []
     for row in conn.execute("SELECT scraped_at, total_jobs, new_jobs FROM scrape_log ORDER BY scraped_at DESC LIMIT 30"):
         history.append(dict(row))
     conn.close()
-    return {"total": total, "by_status": by_status, "by_company": by_company, "history": history}
+    return {"total": total, "by_status": by_status, "by_company": by_company,
+            "expiring": expiring, "history": history}
 
 
 def get_companies_list() -> list:

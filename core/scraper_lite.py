@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from core import PROJECT_ROOT, DATA_DIR
 COMPANY_LIST_PATH = PROJECT_ROOT / "公司清单.json"
 RESULTS_DIR = DATA_DIR / "抓取结果"
-RESULTS_DIR.mkdir(exist_ok=True)
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
@@ -248,6 +248,34 @@ def run():
                     all_jobs.extend(jobs)
             except Exception as e:
                 print(f"  [ERR] {company['name']}: {e}")
+
+    # Nowcoder aggregation
+    print("[INFO] 牛客网聚合搜索...")
+    try:
+        from core.sources import scrape_nowcoder
+        nowcoder_jobs = scrape_nowcoder()
+        if nowcoder_jobs:
+            print(f"  [OK] 牛客: {len(nowcoder_jobs)} 条")
+            all_jobs.extend(nowcoder_jobs)
+    except Exception as e:
+        print(f"  [WARN] 牛客: {e}")
+
+    # Cookie-based scraping (for companies with saved cookies)
+    try:
+        from core.sources import get_cookie_status, scrape_with_cookies
+        cookies = get_cookie_status()
+        for key, info in cookies.items():
+            if info.get("saved"):
+                print(f"[INFO] Cookie抓取: {info['name']}...")
+                try:
+                    cookie_jobs = scrape_with_cookies(key)
+                    if cookie_jobs:
+                        print(f"  [OK] {info['name']}: {len(cookie_jobs)} 条")
+                        all_jobs.extend(cookie_jobs)
+                except Exception as e:
+                    print(f"  [WARN] {info['name']}: {e}")
+    except Exception:
+        pass
 
     # Save to DB (dedup) + JSON
     from core.db import upsert_jobs

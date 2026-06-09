@@ -219,16 +219,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(content)
         elif self.path == "/api/data":
             self._send_json(collect_data())
+        elif self.path == "/api/resume":
+            from core.resume_match import get_resume_text
+            self._send_json({"text": get_resume_text()})
         elif self.path == "/api/sources":
             from core.sources import get_cookie_status
             self._send_json(get_cookie_status())
         elif self.path.startswith("/api/jobs"):
-            from core.db import get_all_jobs, get_stats
+            from core.db import get_all_jobs, get_stats, get_expiring_jobs
             from urllib.parse import urlparse, parse_qs
             qs = parse_qs(urlparse(self.path).query)
             status = qs.get("status", [""])[0]
             company = qs.get("company", [""])[0]
-            self._send_json({"jobs": get_all_jobs(status, company), "stats": get_stats()})
+            self._send_json({
+                "jobs": get_all_jobs(status, company),
+                "stats": get_stats(),
+                "expiring": get_expiring_jobs(3),
+            })
         elif self.path == "/api/report":
             report_dir = DATA_DIR / "每日播报"
             reports = sorted(report_dir.glob("*.md"), reverse=True) if report_dir.exists() else []
@@ -279,13 +286,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     self._send_json({"ok": False, "error": str(e)}, 500)
             elif self.path == "/api/job-status":
                 from core.db import update_job_status
-                job_id = body.get("id")
-                status = body.get("status", "")
-                if job_id and status:
-                    update_job_status(int(job_id), status)
+                update_job_status(int(body["id"]), body["status"])
+                self._send_json({"ok": True})
+            elif self.path == "/api/job-deadline":
+                from core.db import update_job_deadline
+                update_job_deadline(int(body["id"]), body.get("deadline", ""))
+                self._send_json({"ok": True})
+            elif self.path == "/api/job-notes":
+                from core.db import update_job_notes
+                update_job_notes(int(body["id"]), body.get("notes", ""))
+                self._send_json({"ok": True})
+            elif self.path == "/api/resume":
+                from core.resume_match import save_resume_text, get_resume_text
+                if "text" in body:
+                    save_resume_text(body["text"])
                     self._send_json({"ok": True})
                 else:
-                    self._send_json({"error": "missing id or status"}, 400)
+                    self._send_json({"text": get_resume_text()})
+            elif self.path == "/api/resume-match":
+                from core.resume_match import match_job
+                result = match_job(body.get("title",""), body.get("company",""), body.get("url",""))
+                self._send_json(result)
             elif self.path == "/api/login":
                 platform = body.get("platform", "")
                 import threading

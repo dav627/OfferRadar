@@ -79,14 +79,30 @@ async def main():
     from core.report import run as generate_report
     generate_report()
 
+    today = datetime.now().strftime("%Y-%m-%d")
+    from core import DATA_DIR
+    report_path = DATA_DIR / "每日播报" / f"{today}.md"
+
     # Append email report
-    if email_report:
-        today = datetime.now().strftime("%Y-%m-%d")
-        report_path = Path(__file__).parent / "每日播报" / f"{today}.md"
-        if report_path.exists():
+    if email_report and report_path.exists():
+        with open(report_path, "a", encoding="utf-8") as f:
+            f.write(email_report)
+        print("[INFO] 邮件监控已追加到播报")
+
+    # Append deadline warnings
+    try:
+        from core.db import get_expiring_jobs
+        expiring = get_expiring_jobs(3)
+        if expiring and report_path.exists():
+            warn = "\n\n## 即将截止提醒\n\n"
+            for j in expiring:
+                days = max(0, (datetime.strptime(j["deadline"], "%Y-%m-%d") - datetime.now()).days)
+                warn += f"- **{j['company']}** {j['title']} — {'今天截止!' if days==0 else f'{days}天后截止'} ({j['deadline']})\n"
             with open(report_path, "a", encoding="utf-8") as f:
-                f.write(email_report)
-            print("[INFO] 邮件监控已追加到播报")
+                f.write(warn)
+            print(f"[INFO] {len(expiring)} 个岗位即将截止")
+    except Exception:
+        pass
 
     # Push
     if not SKIP_PUSH:
