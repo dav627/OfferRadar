@@ -191,6 +191,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(content)
         elif self.path == "/api/data":
             self._send_json(collect_data())
+        elif self.path == "/api/push-history":
+            from core.db import get_push_history
+            self._send_json({"history": get_push_history(30)})
         elif self.path == "/api/logs":
             from core.logger import get_recent_logs
             self._send_json({"logs": get_recent_logs(200)})

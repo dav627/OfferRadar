@@ -39,7 +39,15 @@ def _conn():
         new_jobs INTEGER,
         source TEXT DEFAULT 'lite'
     )""")
-    # Add deadline column if not exists (migration)
+    conn.execute("""CREATE TABLE IF NOT EXISTS push_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pushed_at TEXT NOT NULL,
+        channel TEXT DEFAULT '',
+        title TEXT DEFAULT '',
+        content_preview TEXT DEFAULT '',
+        success INTEGER DEFAULT 1,
+        error TEXT DEFAULT ''
+    )""")
     try:
         conn.execute("ALTER TABLE jobs ADD COLUMN deadline TEXT DEFAULT ''")
     except sqlite3.OperationalError:
@@ -162,3 +170,18 @@ def get_companies_list() -> list:
     rows = conn.execute("SELECT DISTINCT company FROM jobs ORDER BY company").fetchall()
     conn.close()
     return [r["company"] for r in rows]
+
+
+def log_push(channel: str, title: str, content_preview: str, success: bool, error: str = ""):
+    conn = _conn()
+    conn.execute("INSERT INTO push_log (pushed_at,channel,title,content_preview,success,error) VALUES (?,?,?,?,?,?)",
+                 (datetime.now().isoformat(), channel, title, content_preview[:200], 1 if success else 0, error))
+    conn.commit()
+    conn.close()
+
+
+def get_push_history(limit: int = 20) -> list:
+    conn = _conn()
+    rows = conn.execute("SELECT * FROM push_log ORDER BY pushed_at DESC LIMIT ?", (limit,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

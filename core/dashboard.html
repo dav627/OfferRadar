@@ -303,6 +303,10 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
       <div class="form-row"><label>运行模式</label><select id="cfg-sched-mode"><option value="lite">轻量</option><option value="full">完整</option></select></div>
       <div style="text-align:right;margin-top:10px"><button class="btn btn-primary btn-sm" onclick="saveConfig('schedule')">保存</button></div>
     </div>
+    <div class="box">
+      <h3>推送历史 <span><button class="btn btn-ghost btn-sm" onclick="loadPushHistory()">刷新</button></span></h3>
+      <div id="push-history"><div class="no-data">点击刷新查看</div></div>
+    </div>
   </div>
 </div>
 
@@ -693,6 +697,22 @@ function saveConfig(section){
     value={enabled:document.getElementById('cfg-sched-enabled').value==='true',time:document.getElementById('cfg-sched-time').value,mode:document.getElementById('cfg-sched-mode').value,email:true,push:true};
   }
   api('POST','/api/config',{section,value}).then(()=>toast(section+' 配置已保存'));
+}
+
+// ====== 推送历史 ======
+function loadPushHistory(){
+  fetch('/api/push-history').then(r=>r.json()).then(d=>{
+    const h=d.history||[];
+    if(!h.length){document.getElementById('push-history').innerHTML='<div class="no-data">暂无推送记录</div>';return;}
+    let html='<table><thead><tr><th>时间</th><th>渠道</th><th>标题</th><th>状态</th></tr></thead><tbody>';
+    h.forEach(p=>{
+      const ok=p.success?'<span class="tag high">成功</span>':'<span class="tag low">失败</span>';
+      const err=p.error?` (${p.error.slice(0,30)})`:'';
+      html+=`<tr><td style="color:#64748b;font-size:11px">${(p.pushed_at||'').slice(5,16)}</td><td>${p.channel}</td><td style="font-size:12px">${p.title||'-'}</td><td>${ok}${err}</td></tr>`;
+    });
+    html+='</tbody></table>';
+    document.getElementById('push-history').innerHTML=html;
+  });
 }
 
 // ====== 对话助手 ======

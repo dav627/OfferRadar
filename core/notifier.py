@@ -139,53 +139,143 @@ def push_qmsg(title: str, content: str, key: str, qq: str) -> bool:
 
 
 def send_notification(title: str, content: str) -> dict:
-    """通过所有已启用的渠道发送通知"""
+    """通过所有已启用的渠道发送通知，并记录推送结果"""
+    from core.db import log_push
+
     config = load_config()
     channels = config.get("push_channels", {})
     results = {}
 
-    if channels.get("serverchan", {}).get("enabled"):
-        sendkey = channels["serverchan"]["sendkey"]
-        results["serverchan"] = push_serverchan(title, content, sendkey)
+    push_fns = {
+        "serverchan": lambda ch: push_serverchan(title, content, ch["sendkey"]),
+        "pushplus": lambda ch: push_pushplus(title, content, ch["token"]),
+        "wecom_bot": lambda ch: push_wecom_bot(title, content, ch["webhook"]),
+        "qmsg": lambda ch: push_qmsg(title, content, ch["key"], ch["qq"]),
+    }
 
-    if channels.get("pushplus", {}).get("enabled"):
-        token = channels["pushplus"]["token"]
-        results["pushplus"] = push_pushplus(title, content, token)
-
-    if channels.get("wecom_bot", {}).get("enabled"):
-        webhook = channels["wecom_bot"]["webhook"]
-        results["wecom_bot"] = push_wecom_bot(title, content, webhook)
-
-    if channels.get("qmsg", {}).get("enabled"):
-        key = channels["qmsg"]["key"]
-        qq = channels["qmsg"]["qq"]
-        results["qmsg"] = push_qmsg(title, content, key, qq)
+    for name, fn in push_fns.items():
+        ch = channels.get(name, {})
+        if ch.get("enabled"):
+            try:
+                ok = fn(ch)
+                results[name] = ok
+                log_push(name, title, content[:150], ok)
+            except Exception as e:
+                results[name] = False
+                log_push(name, title, content[:150], False, str(e))
 
     if not results:
         print("[WARN] 未启用任何推送渠道")
-        print("[INFO] 请编辑 config.json 配置推送渠道")
 
     return results
 
 
+def _build_smart_title(new_count: int, expiring_count: int, companies: list) -> str:
+    """生成智能推送标题"""
+    today = datetime.now().strftime("%m-%d")
+    parts = []
+    if new_count > 0:
+        co_text = "/".join(companies[:2])
+        parts.append(f"+{new_count}新岗 {co_text}")
+    if expiring_count > 0:
+        parts.append(f"{expiring_count}个即将截止")
+    if parts:
+        return f"秋招{today} | {' · '.join(parts)}"
+    return f"秋招日报 {today} | 暂无新增"
+
+
+def _build_push_content(report_raw: str, new_jobs: list, expiring: list) -> str:
+    """构建适合微信阅读的推送内容（非原始 Markdown）"""
+    sections = []
+
+    # 截止紧急提醒
+    if expiring:
+        lines = ["## ⚠️ 即将截止\n"]
+        for j in expiring:
+            from datetime import datetime as dt
+            days = max(0, (dt.strptime(j["deadline"], "%Y-%m-%d") - dt.now()).days)
+            urgency = "**今天截止!**" if days == 0 else f"还剩{days}天"
+            lines.append(f"- **{j['company']}** {j['title']} — {urgency}")
+        sections.append("\n".join(lines))
+
+    # 新增岗位
+    if new_jobs:
+        lines = [f"## 📋 今日新增 {len(new_jobs)} 个岗位\n"]
+        for j in new_jobs[:10]:
+            lines.append(f"- **{j['company']}** {j['title']}")
+        if len(new_jobs) > 10:
+            lines.append(f"- ...等共{len(new_jobs)}个")
+        sections.append("\n".join(lines))
+
+    # 状态总览
+    try:
+        from core.db import get_stats
+        stats = get_stats()
+        status = stats.get("by_status", {})
+        overview = f"""## 📊 投递进度
+
+| 状态 | 数量 |
+|------|------|
+| 待投递 | {status.get('待投递', 0)} |
+| 已投递 | {status.get('已投递', 0)} |
+| 面试中 | {status.get('面试中', 0)} |
+| Offer | {status.get('offer', 0)} |
+| 总岗位 | {stats.get('total', 0)} |"""
+        sections.append(overview)
+    except Exception:
+        pass
+
+    if not sections:
+        sections.append("今日无新增岗位，市场平静。\n\n打开仪表盘查看详情。")
+
+    return "\n\n---\n\n".join(sections)
+
+
 def send_daily_report():
-    """发送每日播报"""
+    """发送每日播报——智能标题 + 模板化内容"""
     today = datetime.now().strftime("%Y-%m-%d")
+
+    # 获取今日数据
+    new_jobs = []
+    expiring = []
+    try:
+        from core.db import get_new_jobs, get_expiring_jobs
+        today_start = datetime.now().replace(hour=0, minute=0, second=0).isoformat()
+        new_jobs = get_new_jobs(since=today_start)
+        expiring = get_expiring_jobs(3)
+    except Exception:
+        pass
+
+    # 新增岗位的公司列表
+    new_companies = list(dict.fromkeys(j["company"] for j in new_jobs))
+
+    # 智能标题
+    title = _build_smart_title(len(new_jobs), len(expiring), new_companies)
+
+    # 原始播报内容
     report_path = DATA_DIR / "每日播报" / f"{today}.md"
+    report_raw = ""
+    if report_path.exists():
+        with open(report_path, "r", encoding="utf-8") as f:
+            report_raw = f.read()
 
-    if not report_path.exists():
-        print(f"[ERROR] 未找到今日播报: {report_path}")
-        return
+    # 构建推送专用内容
+    content = _build_push_content(report_raw, new_jobs, expiring)
 
-    with open(report_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    title = f"秋招日报 {today}"
+    # 推送
     results = send_notification(title, content)
 
     success = sum(1 for v in results.values() if v)
     total = len(results)
     print(f"\n[SUMMARY] 推送完成: {success}/{total} 个渠道成功")
+
+    # 截止紧急单独推一条
+    if expiring:
+        urgent = [j for j in expiring if j.get("deadline") == today]
+        if urgent:
+            urgent_title = f"⚠️ 今天截止！{len(urgent)}个岗位"
+            urgent_content = "\n".join(f"- **{j['company']}** {j['title']}" for j in urgent)
+            send_notification(urgent_title, urgent_content)
 
 
 if __name__ == "__main__":
