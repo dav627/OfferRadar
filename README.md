@@ -94,7 +94,31 @@ $ python3 launcher.py status
 
 ---
 
-## 从零开始：完整部署流程
+## 一键启动（推荐）
+
+```bash
+git clone https://github.com/dav627/OfferRadar.git
+cd OfferRadar
+
+# macOS / Linux
+./start.sh
+
+# Windows
+start.bat
+```
+
+脚本会自动：检查 Python → 安装依赖 → 创建配置文件 → 初始化 → 启动可视化仪表盘。
+
+首次运行会生成 `config.yaml`，脚本会提示你编辑它。填好后再次运行 `./start.sh` 即可启动。
+
+> 仪表盘启动后，**所有配置都可以在网页界面上直接修改**（目标公司、岗位关键词、LLM Key、推送渠道、定时任务等），无需再手动编辑文件。
+
+---
+
+## 手动部署（完整步骤）
+
+<details>
+<summary>点击展开手动部署流程</summary>
 
 ### 第 1 步：安装
 
@@ -287,6 +311,10 @@ python3 launcher.py schedule --off            # 关闭
 
 自动检测操作系统：macOS 用 launchd，Windows 用任务计划程序，Linux 用 crontab。
 
+> 定时任务也可以在仪表盘的「系统配置」页面直接设置。
+
+</details>
+
 ---
 
 ## 自定义目标公司
@@ -338,8 +366,10 @@ python3 launcher.py schedule --off            # 关闭
 
 ```
 OfferRadar/
-├── launcher.py              # 唯一入口
-├── config.yaml.example      # 配置模板（cp 为 config.yaml 后编辑）
+├── start.sh                 # 一键启动（macOS/Linux）
+├── start.bat                # 一键启动（Windows）
+├── launcher.py              # 命令行入口
+├── config.yaml.example      # 配置模板
 ├── 公司清单.json             # 目标公司（可自由增删）
 ├── README.md
 │

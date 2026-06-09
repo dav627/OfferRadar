@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OfferRadar Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.header{background:linear-gradient(135deg,#1e293b,#334155);padding:20px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #334155}
+.header h1{font-size:22px;font-weight:700;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .meta{color:#94a3b8;font-size:13px}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:#1e293b;border-radius:8px;padding:4px;width:fit-content}
+.tab{padding:8px 18px;border-radius:6px;cursor:pointer;font-size:13px;color:#94a3b8;transition:.2s}
+.tab.active{background:#334155;color:#e2e8f0;font-weight:600}
+.tab:hover:not(.active){color:#e2e8f0}
+.panel{display:none}.panel.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
+.card{background:#1e293b;border-radius:10px;padding:18px;border:1px solid #334155;transition:.2s}
+.card:hover{transform:translateY(-2px);border-color:#475569}
+.card .label{font-size:12px;color:#94a3b8;margin-bottom:6px}
+.card .value{font-size:32px;font-weight:700}
+.card .value.blue{color:#60a5fa}.card .value.green{color:#34d399}
+.card .value.yellow{color:#fbbf24}.card .value.purple{color:#a78bfa}.card .value.red{color:#f87171}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.box{background:#1e293b;border-radius:10px;padding:18px;border:1px solid #334155;margin-bottom:14px}
+.box h3{font-size:14px;color:#94a3b8;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.box canvas{max-height:240px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;color:#94a3b8;border-bottom:1px solid #334155;font-weight:500}
+td{padding:8px 10px;border-bottom:1px solid rgba(51,65,85,.5)}
+tr:hover td{background:#334155}
+a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
+.tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:500}
+.tag.S{background:#7f1d1d;color:#f87171}.tag.A{background:#78350f;color:#fbbf24}
+.tag.B{background:#1e3a5f;color:#60a5fa}.tag.C{background:#374151;color:#9ca3af}
+.tag.high{background:#065f46;color:#34d399}.tag.mid{background:#78350f;color:#fbbf24}.tag.low{background:#7f1d1d;color:#f87171}
+.filters{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.filters select{background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:5px 10px;font-size:12px}
+.btn{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:500;transition:.2s}
+.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-danger{background:#ef4444;color:#fff}.btn-danger:hover{background:#dc2626}
+.btn-ghost{background:transparent;color:#94a3b8;border:1px solid #475569}.btn-ghost:hover{background:#334155;color:#e2e8f0}
+.btn-sm{padding:4px 10px;font-size:11px}
+input,textarea,select{background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:6px;padding:7px 10px;font-size:13px;font-family:inherit;width:100%}
+input:focus,textarea:focus{outline:none;border-color:#3b82f6}
+.form-row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center;margin-bottom:10px}
+.form-row label{font-size:13px;color:#94a3b8;text-align:right}
+.tag-input{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:36px;padding:4px 8px;background:#0f172a;border:1px solid #475569;border-radius:6px}
+.tag-item{display:flex;align-items:center;gap:4px;background:#334155;padding:2px 8px;border-radius:4px;font-size:12px}
+.tag-item .remove{cursor:pointer;color:#f87171;font-weight:bold}
+.tag-input input{border:none;background:transparent;width:80px;padding:4px;flex:1;min-width:60px}
+.tag-input input:focus{outline:none}
+.toast{position:fixed;top:20px;right:20px;background:#065f46;color:#34d399;padding:12px 20px;border-radius:8px;font-size:13px;opacity:0;transition:.3s;z-index:999}
+.toast.show{opacity:1}
+.no-data{color:#64748b;font-style:italic;padding:16px;text-align:center}
+.email-item{padding:8px 0;border-bottom:1px solid #334155}.email-item:last-child{border:none}
+@media(max-width:768px){.cards{grid-template-columns:repeat(3,1fr)}.charts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>OfferRadar Dashboard</h1>
+  <div class="meta">
+    <span id="profile-info"></span> · 更新: <span id="last-update">-</span>
+    <button class="btn btn-primary btn-sm" style="margin-left:12px" id="btn-refresh" onclick="runUpdate()">立即更新</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')">总览</div>
+    <div class="tab" onclick="switchTab('companies')">目标公司</div>
+    <div class="tab" onclick="switchTab('profile')">岗位设置</div>
+    <div class="tab" onclick="switchTab('settings')">系统配置</div>
+  </div>
+
+  <!-- ====== 总览 ====== -->
+  <div id="panel-overview" class="panel active">
+    <div class="cards">
+      <div class="card"><div class="label">监控公司</div><div class="value blue" id="stat-companies">-</div></div>
+      <div class="card"><div class="label">发现岗位</div><div class="value purple" id="stat-jobs">-</div></div>
+      <div class="card"><div class="label">待投递</div><div class="value yellow" id="stat-pending">-</div></div>
+      <div class="card"><div class="label">面试中</div><div class="value green" id="stat-interview">-</div></div>
+      <div class="card"><div class="label">Offer</div><div class="value red" id="stat-offer">-</div></div>
+    </div>
+    <div class="charts">
+      <div class="box"><h3>投递状态</h3><canvas id="chart-status"></canvas></div>
+      <div class="box"><h3>抓取趋势</h3><canvas id="chart-trend"></canvas></div>
+      <div class="box"><h3>公司梯队</h3><canvas id="chart-tier"></canvas></div>
+      <div class="box"><h3>匹配度</h3><canvas id="chart-match"></canvas></div>
+    </div>
+    <div class="box">
+      <h3>最新抓取岗位</h3>
+      <div class="filters">
+        <select id="filter-company"><option value="">全部公司</option></select>
+        <select id="filter-source"><option value="">全部来源</option></select>
+      </div>
+      <table><thead><tr><th>公司</th><th>岗位</th><th>部门</th><th>来源</th><th>时间</th></tr></thead>
+      <tbody id="job-table"></tbody></table>
+    </div>
+    <div class="box"><h3>邮件通知（3天未读）</h3><div id="email-list"><div class="no-data">暂无</div></div></div>
+  </div>
+
+  <!-- ====== 目标公司 ====== -->
+  <div id="panel-companies" class="panel">
+    <div class="box">
+      <h3>目标公司管理 <span><button class="btn btn-primary btn-sm" onclick="addCompany()">+ 添加公司</button></span></h3>
+      <table>
+        <thead><tr><th>公司</th><th>梯队</th><th>分类</th><th>别名</th><th>操作</th></tr></thead>
+        <tbody id="company-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== 岗位设置 ====== -->
+  <div id="panel-profile" class="panel">
+    <div class="box">
+      <h3>求职画像</h3>
+      <div class="form-row"><label>目标岗位</label><input id="pf-role" placeholder="如：算法工程师"></div>
+      <div class="form-row"><label>毕业届别</label><input id="pf-grad" placeholder="如：2027"></div>
+      <div class="form-row"><label>技能简介</label><textarea id="pf-bio" rows="3" placeholder="你的技能背景，供 LLM 分析时参考"></textarea></div>
+      <div class="form-row"><label>搜索关键词</label><div class="tag-input" id="kw-include"></div></div>
+      <div class="form-row"><label>排除关键词</label><div class="tag-input" id="kw-exclude"></div></div>
+      <div style="text-align:right;margin-top:14px"><button class="btn btn-primary" onclick="saveProfile()">保存求职画像</button></div>
+    </div>
+  </div>
+
+  <!-- ====== 系统配置 ====== -->
+  <div id="panel-settings" class="panel">
+    <div class="box">
+      <h3>LLM 接口</h3>
+      <div class="form-row"><label>API Key</label><input id="cfg-llm-key" placeholder="sk-xxx"></div>
+      <div class="form-row"><label>Base URL</label><input id="cfg-llm-url" placeholder="https://api.deepseek.com/v1"></div>
+      <div class="form-row"><label>Model</label><input id="cfg-llm-model" placeholder="deepseek-chat"></div>
+      <div style="text-align:right;margin-top:10px"><button class="btn btn-primary btn-sm" onclick="saveConfig('llm')">保存</button></div>
+    </div>
+    <div class="box">
+      <h3>网络代理</h3>
+      <div class="form-row"><label>HTTP</label><input id="cfg-proxy-http" placeholder="http://127.0.0.1:7897 或留空"></div>
+      <div class="form-row"><label>HTTPS</label><input id="cfg-proxy-https" placeholder="同上"></div>
+      <div style="text-align:right;margin-top:10px"><button class="btn btn-primary btn-sm" onclick="saveConfig('proxy')">保存</button></div>
+    </div>
+    <div class="box">
+      <h3>定时任务</h3>
+      <div class="form-row"><label>启用</label><select id="cfg-sched-enabled"><option value="true">开启</option><option value="false">关闭</option></select></div>
+      <div class="form-row"><label>执行时间</label><input id="cfg-sched-time" placeholder="09:00"></div>
+      <div class="form-row"><label>运行模式</label><select id="cfg-sched-mode"><option value="lite">轻量</option><option value="full">完整</option></select></div>
+      <div style="text-align:right;margin-top:10px"><button class="btn btn-primary btn-sm" onclick="saveConfig('schedule')">保存</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const C={blue:'#60a5fa',purple:'#a78bfa',green:'#34d399',yellow:'#fbbf24',red:'#f87171',gray:'#64748b',cyan:'#22d3ee'};
+Chart.defaults.color='#94a3b8';Chart.defaults.borderColor='#334155';
+
+let DATA={},allJobs=[],allCompanies=[];
+
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',t.textContent.includes({'overview':'总览','companies':'目标公司','profile':'岗位设置','settings':'系统配置'}[name])));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+function api(method,path,body){
+  return fetch(path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined}).then(r=>r.json());
+}
+
+// ====== Tag Input ======
+function createTagInput(containerId, tags){
+  const el=document.getElementById(containerId);
+  el.innerHTML='';
+  const state={tags:[...tags]};
+  function render(){
+    el.innerHTML='';
+    state.tags.forEach((t,i)=>{
+      const d=document.createElement('span');d.className='tag-item';
+      d.innerHTML=`${t} <span class="remove" onclick="this.parentElement.remove();document.getElementById('${containerId}')._tags.splice(${i},1)">×</span>`;
+      el.appendChild(d);
+    });
+    const inp=document.createElement('input');inp.placeholder='输入后回车';
+    inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim()){e.preventDefault();state.tags.push(inp.value.trim());render();}};
+    el.appendChild(inp);
+    el._tags=state.tags;
+  }
+  render();
+  return state;
+}
+
+// ====== Load Data ======
+fetch('/api/data').then(r=>r.json()).then(data=>{
+  DATA=data;
+  // Stats
+  document.getElementById('stat-companies').textContent=data.stats.companies;
+  document.getElementById('stat-jobs').textContent=data.stats.jobs;
+  document.getElementById('stat-pending').textContent=data.stats.pending;
+  document.getElementById('stat-interview').textContent=data.stats.interview;
+  document.getElementById('stat-offer').textContent=data.stats.offer;
+  document.getElementById('last-update').textContent=data.stats.last_update;
+  document.getElementById('profile-info').textContent=data.stats.profile;
+
+  // Charts
+  new Chart(document.getElementById('chart-status'),{type:'doughnut',data:{labels:Object.keys(data.status_dist),datasets:[{data:Object.values(data.status_dist),backgroundColor:[C.yellow,C.gray,C.blue,C.green,C.red],borderWidth:0}]},options:{cutout:'55%',plugins:{legend:{position:'right'}}}});
+  new Chart(document.getElementById('chart-trend'),{type:'line',data:{labels:data.trend.dates,datasets:[{label:'岗位数',data:data.trend.counts,borderColor:C.cyan,backgroundColor:'rgba(34,211,238,0.1)',fill:true,tension:.3,pointRadius:4}]},options:{scales:{y:{beginAtZero:true}},plugins:{legend:{display:false}}}});
+  new Chart(document.getElementById('chart-tier'),{type:'bar',data:{labels:Object.keys(data.tier_dist),datasets:[{data:Object.values(data.tier_dist),backgroundColor:[C.red,C.yellow,C.blue,C.gray],borderRadius:6}]},options:{scales:{y:{beginAtZero:true}},plugins:{legend:{display:false}}}});
+  new Chart(document.getElementById('chart-match'),{type:'doughnut',data:{labels:Object.keys(data.match_dist),datasets:[{data:Object.values(data.match_dist),backgroundColor:[C.green,C.yellow,C.red],borderWidth:0}]},options:{cutout:'55%',plugins:{legend:{position:'right'}}}});
+
+  // Job table
+  allJobs=data.jobs;
+  const companies=[...new Set(allJobs.map(j=>j.company))].sort();
+  const sources=[...new Set(allJobs.map(j=>j.source))].sort();
+  const fc=document.getElementById('filter-company'),fs=document.getElementById('filter-source');
+  companies.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;fc.appendChild(o)});
+  sources.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;fs.appendChild(o)});
+  fc.onchange=fs.onchange=renderJobTable;
+  renderJobTable();
+
+  // Emails
+  if(data.emails&&data.emails.length>0){
+    document.getElementById('email-list').innerHTML=data.emails.map(e=>`<div class="email-item"><span class="tag ${e.category==='面试邀请'?'high':e.category==='Offer通知'?'mid':'B'}">${e.category}</span> <strong>${e.company}</strong> — ${e.subject}</div>`).join('');
+  }
+
+  // Company table
+  allCompanies=data.companies||[];
+  renderCompanyTable();
+
+  // Profile
+  const p=data.profile||{};
+  document.getElementById('pf-role').value=p.target_role||'';
+  document.getElementById('pf-grad').value=p.graduation||'';
+  document.getElementById('pf-bio').value=p.bio||'';
+  createTagInput('kw-include',p.keywords||[]);
+  createTagInput('kw-exclude',p.exclude_keywords||[]);
+
+  // Settings
+  const cfg=data.config||{};
+  document.getElementById('cfg-llm-key').value=(cfg.llm||{}).api_key||'';
+  document.getElementById('cfg-llm-url').value=(cfg.llm||{}).base_url||'';
+  document.getElementById('cfg-llm-model').value=(cfg.llm||{}).model||'';
+  document.getElementById('cfg-proxy-http').value=(cfg.proxy||{}).http||'';
+  document.getElementById('cfg-proxy-https').value=(cfg.proxy||{}).https||'';
+  document.getElementById('cfg-sched-enabled').value=String((cfg.schedule||{}).enabled||false);
+  document.getElementById('cfg-sched-time').value=(cfg.schedule||{}).time||'09:00';
+  document.getElementById('cfg-sched-mode').value=(cfg.schedule||{}).mode||'lite';
+});
+
+function renderJobTable(){
+  const fc=document.getElementById('filter-company').value;
+  const fs=document.getElementById('filter-source').value;
+  const filtered=allJobs.filter(j=>(!fc||j.company===fc)&&(!fs||j.source===fs));
+  document.getElementById('job-table').innerHTML=filtered.map(j=>{
+    const url=j.url||'#';
+    const hasUrl=url&&url!=='#'&&url.startsWith('http');
+    const titleHtml=hasUrl?`<a href="${url}" target="_blank">${j.title}</a>`:j.title;
+    return `<tr><td><strong>${j.company}</strong></td><td>${titleHtml}</td><td>${j.department||'-'}</td><td><span class="tag B">${j.source}</span></td><td style="color:#64748b">${(j.scraped_at||'').slice(0,10)}</td></tr>`;
+  }).join('')||'<tr><td colspan="5" class="no-data">无</td></tr>';
+}
+
+function renderCompanyTable(){
+  document.getElementById('company-table').innerHTML=allCompanies.map((c,i)=>
+    `<tr>
+      <td><strong>${c.name}</strong></td>
+      <td><span class="tag ${c.tier}">${c.tier}</span></td>
+      <td>${c.category||''}</td>
+      <td style="color:#64748b;font-size:12px">${(c.aliases||[]).join(', ')}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteCompany(${i})">删除</button></td>
+    </tr>`
+  ).join('');
+}
+
+function addCompany(){
+  const name=prompt('公司名称');if(!name)return;
+  const tier=prompt('梯队 (S/A/B/C)','B')||'B';
+  const category=prompt('分类','互联网大厂')||'';
+  const aliases=prompt('英文别名（逗号分隔，可空）','')||'';
+  const c={name,tier:tier.toUpperCase(),category,aliases:aliases?aliases.split(',').map(s=>s.trim()):[]};
+  allCompanies.push(c);
+  renderCompanyTable();
+  api('POST','/api/companies',{companies:allCompanies}).then(()=>toast('已添加: '+name));
+}
+
+function deleteCompany(idx){
+  if(!confirm('确认删除 '+allCompanies[idx].name+'？'))return;
+  const name=allCompanies[idx].name;
+  allCompanies.splice(idx,1);
+  renderCompanyTable();
+  api('POST','/api/companies',{companies:allCompanies}).then(()=>toast('已删除: '+name));
+}
+
+function saveProfile(){
+  const p={
+    target_role:document.getElementById('pf-role').value,
+    graduation:document.getElementById('pf-grad').value,
+    bio:document.getElementById('pf-bio').value,
+    keywords:document.getElementById('kw-include')._tags||[],
+    exclude_keywords:document.getElementById('kw-exclude')._tags||[],
+  };
+  api('POST','/api/profile',p).then(()=>toast('求职画像已保存'));
+}
+
+function runUpdate(){
+  const btn=document.getElementById('btn-refresh');
+  btn.textContent='更新中...';btn.disabled=true;
+  api('POST','/api/run',{}).then(()=>{
+    toast('后台更新已启动，约10秒后刷新查看');
+    setTimeout(()=>{btn.textContent='立即更新';btn.disabled=false;location.reload();},12000);
+  }).catch(()=>{btn.textContent='立即更新';btn.disabled=false;toast('更新失败');});
+}
+
+function saveConfig(section){
+  let value={};
+  if(section==='llm'){
+    const key=document.getElementById('cfg-llm-key').value;
+    value={api_key:key.startsWith('sk-****')?undefined:key,base_url:document.getElementById('cfg-llm-url').value,model:document.getElementById('cfg-llm-model').value};
+    if(!value.api_key)delete value.api_key;
+  }else if(section==='proxy'){
+    value={http:document.getElementById('cfg-proxy-http').value,https:document.getElementById('cfg-proxy-https').value};
+  }else if(section==='schedule'){
+    value={enabled:document.getElementById('cfg-sched-enabled').value==='true',time:document.getElementById('cfg-sched-time').value,mode:document.getElementById('cfg-sched-mode').value,email:true,push:true};
+  }
+  api('POST','/api/config',{section,value}).then(()=>toast(section+' 配置已保存'));
+}
+</script>
+</body>
+</html>

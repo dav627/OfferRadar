@@ -14,6 +14,9 @@
   python3 launcher.py test-llm         测试 LLM 接口
   python3 launcher.py gmail-auth       Gmail OAuth 授权
 
+  python3 launcher.py dashboard         打开可视化仪表盘
+  python3 launcher.py dashboard --export 导出静态 HTML
+
   python3 launcher.py schedule         查看定时任务状态
   python3 launcher.py schedule --on    开启定时任务
   python3 launcher.py schedule --off   关闭定时任务
@@ -263,8 +266,17 @@ def main():
         "test-push": cmd_test_push,
         "test-llm": cmd_test_llm,
         "gmail-auth": cmd_gmail_auth,
+        "dashboard": lambda: _cmd_dashboard(rest),
         "schedule": lambda: cmd_schedule(rest),
     }
+
+
+def _cmd_dashboard(args):
+    from core.dashboard import serve, export_html
+    if "--export" in args:
+        export_html()
+    else:
+        serve()
 
     if cmd in commands:
         result = commands[cmd]
