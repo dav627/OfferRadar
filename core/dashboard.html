@@ -287,6 +287,30 @@ input:focus,textarea:focus{outline:none;border-color:#3b82f6}
 
 <div class="toast" id="toast"></div>
 
+<!-- 对话助手悬浮按钮 -->
+<div id="chat-fab" onclick="toggleChat()" style="position:fixed;bottom:24px;right:24px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:998;font-size:22px">💬</div>
+
+<!-- 对话面板 -->
+<div id="chat-panel" style="display:none;position:fixed;bottom:84px;right:24px;width:380px;height:500px;background:#1e293b;border:1px solid #334155;border-radius:12px;z-index:999;display:none;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+  <div style="padding:12px 16px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-weight:600;font-size:14px">求职助手</span>
+    <span style="cursor:pointer;color:#64748b;font-size:18px" onclick="toggleChat()">&times;</span>
+  </div>
+  <div id="chat-messages" style="flex:1;overflow-y:auto;padding:12px;font-size:13px;line-height:1.6">
+    <div style="background:#334155;border-radius:8px;padding:8px 12px;margin-bottom:8px;color:#94a3b8">
+      你好！我是你的秋招助手。可以问我：<br>
+      · 帮我对比字节和腾讯的岗位<br>
+      · 我的简历适合投哪些公司<br>
+      · 查一下有哪些大模型岗位<br>
+      · 秋招投递策略建议
+    </div>
+  </div>
+  <div style="padding:10px;border-top:1px solid #334155;display:flex;gap:8px">
+    <input id="chat-input" placeholder="输入消息..." style="flex:1;border-radius:20px;padding:8px 14px" onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="btn btn-primary" style="border-radius:20px;padding:8px 16px" onclick="sendChat()">发送</button>
+  </div>
+</div>
+
 <script>
 const C={blue:'#60a5fa',purple:'#a78bfa',green:'#34d399',yellow:'#fbbf24',red:'#f87171',gray:'#64748b',cyan:'#22d3ee'};
 Chart.defaults.color='#94a3b8';Chart.defaults.borderColor='#334155';
@@ -650,6 +674,27 @@ function saveConfig(section){
   api('POST','/api/config',{section,value}).then(()=>toast(section+' 配置已保存'));
 }
 
+// ====== 对话助手 ======
+function toggleChat(){
+  const p=document.getElementById('chat-panel');
+  p.style.display=p.style.display==='flex'?'none':'flex';
+}
+function sendChat(){
+  const inp=document.getElementById('chat-input');
+  const msg=inp.value.trim();if(!msg)return;
+  inp.value='';
+  const box=document.getElementById('chat-messages');
+  box.innerHTML+=`<div style="text-align:right;margin-bottom:8px"><span style="background:#3b82f6;border-radius:8px;padding:6px 12px;display:inline-block;max-width:80%">${msg}</span></div>`;
+  box.innerHTML+=`<div id="chat-loading" style="margin-bottom:8px"><span style="background:#334155;border-radius:8px;padding:6px 12px;display:inline-block;color:#64748b">思考中...</span></div>`;
+  box.scrollTop=box.scrollHeight;
+  api('POST','/api/chat',{message:msg}).then(r=>{
+    document.getElementById('chat-loading')?.remove();
+    const reply=r.reply||'抱歉，请检查 LLM 配置。';
+    box.innerHTML+=`<div style="margin-bottom:8px"><span style="background:#334155;border-radius:8px;padding:6px 12px;display:inline-block;max-width:85%;white-space:pre-wrap">${reply}</span></div>`;
+    box.scrollTop=box.scrollHeight;
+  });
+}
+
 // ====== 简历匹配 ======
 function loadResume(){
   window._resumeLoaded=true;
@@ -681,7 +726,14 @@ function analyzeMatch(){
     if(r.error){
       document.getElementById('match-result').innerHTML=`<div style="color:#f87171">${r.error}</div>`;
     }else{
-      document.getElementById('match-result').innerHTML=`<div class="md"><h3>${r.job}</h3>${mdToHtml(r.analysis)}</div>`;
+      let html=`<div class="md"><h3>${r.job}</h3>`;
+      if(r.retrieval){
+        html+=`<div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px"><strong style="color:#60a5fa">RAG 检索</strong>: 简历切分为 ${r.chunks_total} 块，使用了 ${r.chunks_used} 块相关段落<br>`;
+        r.retrieval.forEach((v,i)=>{html+=`<span style="color:#94a3b8">段落${i+1} (相似度${v.score}): ${v.preview}...</span><br>`;});
+        html+='</div>';
+      }
+      html+=mdToHtml(r.analysis)+'</div>';
+      document.getElementById('match-result').innerHTML=html;
     }
   }).catch(()=>{btn.textContent='分析匹配度';btn.disabled=false;});
 }

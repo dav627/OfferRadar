@@ -191,6 +191,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(content)
         elif self.path == "/api/data":
             self._send_json(collect_data())
+        elif self.path == "/api/schedule-status":
+            from core.scheduler import get_schedule_status
+            self._send_json({"companies": get_schedule_status()})
         elif self.path == "/api/resume":
             from core.resume_match import get_resume_text
             self._send_json({"text": get_resume_text()})
@@ -239,19 +242,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     self._send_json({"error": f"invalid section: {section}"}, 400)
             elif self.path == "/api/run":
                 try:
-                    import importlib
                     from core import config as _cfg_mod
                     _cfg_mod._config = None
-                    # Ensure Excel exists
                     if not (DATA_DIR / "秋招投递跟踪表.xlsx").exists():
                         from core.excel import generate
                         generate()
-                    import core.scraper_lite as _sl
-                    importlib.reload(_sl)
-                    jobs = _sl.run()
+                    from core.scheduler import run_scheduled_scrape
+                    result = run_scheduled_scrape()
                     from core.report import run as report_run
                     report_run()
-                    self._send_json({"ok": True, "jobs": len(jobs)})
+                    self._send_json({"ok": True, "jobs": result["total"], "new": result["new"]})
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
@@ -296,9 +296,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         self._send_json({"ok": True, "analyzed": count})
                 except Exception as e:
                     self._send_json({"ok": False, "error": str(e)}, 500)
+            elif self.path == "/api/chat":
+                from core.assistant import chat
+                reply = chat(body.get("message", ""))
+                self._send_json({"reply": reply})
             elif self.path == "/api/resume-match":
-                from core.resume_match import match_job
-                result = match_job(body.get("title",""), body.get("company",""), body.get("url",""))
+                from core.resume_match import get_resume_text
+                from core.rag import rag_match
+                resume = get_resume_text()
+                result = rag_match(resume, body.get("title",""), body.get("company",""))
                 self._send_json(result)
             elif self.path == "/api/login":
                 platform = body.get("platform", "")
