@@ -247,10 +247,19 @@ def _ensure_init():
 
 def serve(port: int = PORT, open_browser: bool = True):
     _ensure_init()
-    server = HTTPServer(("127.0.0.1", port), DashboardHandler)
+    try:
+        server = HTTPServer(("127.0.0.1", port), DashboardHandler)
+    except OSError as e:
+        if "address already in use" in str(e).lower() or "10048" in str(e):
+            print(f"[WARN] 端口 {port} 被占用，尝试 {port+1}")
+            server = HTTPServer(("127.0.0.1", port + 1), DashboardHandler)
+            port += 1
+        else:
+            raise
     url = f"http://127.0.0.1:{port}"
     print(f"[OK] 仪表盘已启动: {url}")
     print("[INFO] 按 Ctrl+C 停止")
+    sys.stdout.flush()
     if open_browser:
         webbrowser.open(url)
     try:

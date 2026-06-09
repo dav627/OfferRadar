@@ -266,17 +266,9 @@ def main():
         "test-push": cmd_test_push,
         "test-llm": cmd_test_llm,
         "gmail-auth": cmd_gmail_auth,
-        "dashboard": lambda: _cmd_dashboard(rest),
+        "dashboard": lambda: _do_dashboard(rest),
         "schedule": lambda: cmd_schedule(rest),
     }
-
-
-def _cmd_dashboard(args):
-    from core.dashboard import serve, export_html
-    if "--export" in args:
-        export_html()
-    else:
-        serve()
 
     if cmd in commands:
         result = commands[cmd]
@@ -284,6 +276,14 @@ def _cmd_dashboard(args):
     else:
         print(f"未知命令: {cmd}\n")
         print(__doc__)
+
+
+def _do_dashboard(args):
+    from core.dashboard import serve, export_html
+    if "--export" in args:
+        export_html()
+    else:
+        serve()
 
 
 if __name__ == "__main__":

@@ -29,14 +29,21 @@ REM === 安装依赖 ===
 %PY% -c "import openpyxl; import yaml" >nul 2>&1
 if errorlevel 1 (
     echo [INFO] 首次运行，正在安装依赖...
-    %PY% -m pip install openpyxl pyyaml -q
+    %PY% -m pip install openpyxl pyyaml
+    echo.
 )
 
-REM === 直接启动 ===
+REM === 启动 ===
 echo.
-echo   浏览器即将打开: http://127.0.0.1:8686
-echo   所有配置可在网页上直接修改
+echo   正在启动仪表盘...
+echo   浏览器将打开: http://127.0.0.1:8686
 echo   关闭此窗口可停止服务
 echo.
-%PY% launcher.py dashboard
+%PY% -c "import sys; sys.path.insert(0,'.'); from core.dashboard import _ensure_init, serve; _ensure_init(); serve()"
+echo.
+echo [INFO] 仪表盘已停止
+if errorlevel 1 (
+    echo.
+    echo [ERROR] 启动失败，请检查上方错误信息
+)
 pause
