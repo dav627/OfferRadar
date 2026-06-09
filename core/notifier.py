@@ -198,13 +198,24 @@ def _build_push_content(report_raw: str, new_jobs: list, expiring: list) -> str:
             lines.append(f"- **{j['company']}** {j['title']} — {urgency}")
         sections.append("\n".join(lines))
 
-    # 新增岗位
+    # 新增岗位（按公司分组）
     if new_jobs:
+        from collections import OrderedDict
+        by_company = OrderedDict()
+        for j in new_jobs:
+            by_company.setdefault(j["company"], []).append(j)
+
         lines = [f"## 📋 今日新增 {len(new_jobs)} 个岗位\n"]
-        for j in new_jobs[:10]:
-            lines.append(f"- **{j['company']}** {j['title']}")
-        if len(new_jobs) > 10:
-            lines.append(f"- ...等共{len(new_jobs)}个")
+        for company, jobs in by_company.items():
+            lines.append(f"### {company}（{len(jobs)}个）")
+            for j in jobs:
+                title = j["title"]
+                url = j.get("url", "")
+                if url and url.startswith("http"):
+                    lines.append(f"- [{title}]({url})")
+                else:
+                    lines.append(f"- {title}")
+            lines.append("")
         sections.append("\n".join(lines))
 
     # 状态总览
