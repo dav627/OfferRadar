@@ -137,7 +137,18 @@ def _save_profile(profile: dict):
 def _save_config_section(section: str, value: dict):
     with open(CONFIG_PATH, encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
-    cfg[section] = value
+    old = cfg.get(section, {})
+    # Preserve masked sensitive values (don't overwrite real keys with ****)
+    def _merge(old_dict, new_dict):
+        for k, v in new_dict.items():
+            if isinstance(v, str) and "****" in v:
+                continue
+            if isinstance(v, dict) and isinstance(old_dict.get(k), dict):
+                _merge(old_dict[k], v)
+            else:
+                old_dict[k] = v
+    _merge(old, value)
+    cfg[section] = old
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.dump(cfg, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
@@ -200,17 +211,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 else:
                     self._send_json({"error": f"invalid section: {section}"}, 400)
             elif self.path == "/api/run":
-                import threading
-                def _bg_run():
-                    try:
-                        from core.scraper_lite import run as lite_run
-                        lite_run()
-                        from core.report import run as report_run
-                        report_run()
-                    except Exception as e:
-                        print(f"[ERROR] 后台更新失败: {e}")
-                threading.Thread(target=_bg_run, daemon=True).start()
-                self._send_json({"ok": True, "msg": "后台更新已启动"})
+                try:
+                    # Reset config cache so new API keys take effect
+                    from core import config as _cfg_mod
+                    _cfg_mod._config = None
+                    from core.scraper_lite import run as lite_run
+                    jobs = lite_run()
+                    from core.report import run as report_run
+                    report_run()
+                    self._send_json({"ok": True, "jobs": len(jobs)})
+                except Exception as e:
+                    self._send_json({"ok": False, "error": str(e)}, 500)
             else:
                 self.send_error(404)
         except Exception as e:
