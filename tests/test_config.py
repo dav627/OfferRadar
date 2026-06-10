@@ -27,7 +27,7 @@ test_config = {
     "schedule": {"enabled": True, "time": "08:00"},
 }
 config_path = Path(_tmpdir) / "config.yaml"
-with open(config_path, "w") as f:
+with open(config_path, "w", encoding="utf-8") as f:
     yaml.dump(test_config, f, allow_unicode=True)
 
 # Reset config cache
